@@ -233,7 +233,7 @@ async function loadUsers() {
         tbody.innerHTML = '';
 
         if (!users || users.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#aaa;">Пользователи не найдены</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Пользователи не найдены</td></tr>';
             return;
         }
 
@@ -241,12 +241,13 @@ async function loadUsers() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td title="${user.id}">${user.id.substring(0, 8)}...</td>
+                <td>${escapeHtml(user.username)}</td>
                 <td>${escapeHtml(user.email)}</td>
                 <td><span class="badge ${user.is_active ? 'badge-success' : 'badge-danger'}">${user.is_active ? 'Да' : 'Нет'}</span></td>
                 <td><span class="badge ${user.is_admin ? 'badge-info' : ''}">${user.is_admin ? 'Да' : 'Нет'}</span></td>
                 <td>${formatDate(user.created_at)}</td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="deleteUser('${user.id}', '${escapeHtml(user.email)}')">Удалить</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteUser('${user.id}', '${escapeHtml(user.username)}')">Удалить</button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -325,7 +326,7 @@ async function openAddPeerModal() {
         usersCache.forEach(user => {
             const option = document.createElement('option');
             option.value = user.id;
-            option.textContent = user.email;
+            option.textContent = `${user.username} (${user.email})`;
             peerUserSelect.appendChild(option);
         });
 

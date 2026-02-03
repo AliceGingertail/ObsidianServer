@@ -21,11 +21,12 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	query := `
-		INSERT INTO users (id, email, password, is_active, is_admin, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO users (id, username, email, password, is_active, is_admin, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	_, err := r.db.Exec(ctx, query,
 		user.ID,
+		user.Username,
 		user.Email,
 		user.Password,
 		user.IsActive,
@@ -38,14 +39,15 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
-		SELECT id, email, password, is_active, is_admin, created_at, updated_at
+		SELECT id, username, email, password, is_active, is_admin, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
-	
+
 	user := &models.User{}
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&user.ID,
+		&user.Username,
 		&user.Email,
 		&user.Password,
 		&user.IsActive,
@@ -53,27 +55,28 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
-	
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domerrors.ErrUserNotFound
 		}
 		return nil, err
 	}
-	
+
 	return user, nil
 }
 
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
-		SELECT id, email, password, is_active, is_admin, created_at, updated_at
+		SELECT id, username, email, password, is_active, is_admin, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
-	
+
 	user := &models.User{}
 	err := r.db.QueryRow(ctx, query, email).Scan(
 		&user.ID,
+		&user.Username,
 		&user.Email,
 		&user.Password,
 		&user.IsActive,
@@ -81,40 +84,41 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
-	
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domerrors.ErrUserNotFound
 		}
 		return nil, err
 	}
-	
+
 	return user, nil
 }
 
 func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	query := `
 		UPDATE users
-		SET email = $2, password = $3, is_active = $4, is_admin = $5
+		SET username = $2, email = $3, password = $4, is_active = $5, is_admin = $6
 		WHERE id = $1
 	`
-	
+
 	result, err := r.db.Exec(ctx, query,
 		user.ID,
+		user.Username,
 		user.Email,
 		user.Password,
 		user.IsActive,
 		user.IsAdmin,
 	)
-	
+
 	if err != nil {
 		return err
 	}
-	
+
 	if result.RowsAffected() == 0 {
 		return domerrors.ErrUserNotFound
 	}
-	
+
 	return nil
 }
 
@@ -135,7 +139,7 @@ func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r *UserRepository) GetAll(ctx context.Context) ([]*models.User, error) {
 	query := `
-		SELECT id, email, password, is_active, is_admin, created_at, updated_at
+		SELECT id, username, email, password, is_active, is_admin, created_at, updated_at
 		FROM users
 		ORDER BY created_at DESC
 	`
@@ -151,6 +155,7 @@ func (r *UserRepository) GetAll(ctx context.Context) ([]*models.User, error) {
 		user := &models.User{}
 		err := rows.Scan(
 			&user.ID,
+			&user.Username,
 			&user.Email,
 			&user.Password,
 			&user.IsActive,
