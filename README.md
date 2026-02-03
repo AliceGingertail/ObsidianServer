@@ -17,7 +17,7 @@
 ## Архитектура
 
 ```
-├── cmd/ObsidianServer/          # Точка входа
+├── cmd/obsidian-server/          # Точка входа
 ├── internal/
 │   ├── api/                 # HTTP handlers и роутер
 │   ├── config/              # Конфигурация
@@ -73,7 +73,7 @@ docker compose logs obsidian-server
 # Регистрация пользователя
 curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"password123"}'
+  -d '{"username":"admin","email":"admin@example.com","password":"password123"}'
 
 # Назначение прав администратора
 docker exec vpn-postgres psql -U vpn -d vpn -c \
@@ -114,6 +114,7 @@ GRANT ALL PRIVILEGES ON DATABASE vpn TO vpn;
 Примените миграции:
 ```bash
 psql -U vpn -d vpn -f internal/repository/migrations/001_init_schema.sql
+psql -U vpn -d vpn -f internal/repository/migrations/002_add_username.sql
 ```
 
 ### 3. Настройте WireGuard
@@ -150,10 +151,10 @@ cp .env.example .env
 # Отредактируйте .env
 
 # Соберите
-go build -o ObsidianServer ./cmd/ObsidianServer
+go build -o obsidian-server ./cmd/obsidian-server
 
 # Запустите
-sudo ./ObsidianServer
+sudo ./obsidian-server
 ```
 
 ## API Документация
@@ -162,20 +163,21 @@ sudo ./ObsidianServer
 
 **Регистрация:**
 ```bash
-curl -X POST http://localhost:8080/api/auth/register \
+curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com",
+    "username": "john",
+    "email": "john@example.com",
     "password": "password123"
   }'
 ```
 
 **Вход:**
 ```bash
-curl -X POST http://localhost:8080/api/auth/login \
+curl -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com",
+    "email": "john@example.com",
     "password": "password123"
   }'
 ```
@@ -187,18 +189,19 @@ curl -X POST http://localhost:8080/api/auth/login \
   "refresh_token": "abc123...",
   "user": {
     "id": "uuid",
-    "email": "user@example.com",
+    "username": "john",
+    "email": "john@example.com",
     "is_active": true,
     "is_admin": false
   }
 }
 ```
 
-### Управление устройствами
+### Управление устройствами (peers)
 
 **Создать устройство:**
 ```bash
-curl -X POST http://localhost:8080/api/vpn/peers \
+curl -X POST http://localhost:8081/api/vpn/peers \
   -H "Authorization: Bearer <ACCESS_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -222,19 +225,19 @@ curl -X POST http://localhost:8080/api/vpn/peers \
 
 **Список устройств:**
 ```bash
-curl http://localhost:8080/api/vpn/peers \
+curl http://localhost:8081/api/vpn/peers \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
 **Получить конфигурацию:**
 ```bash
-curl http://localhost:8080/api/vpn/peers/<PEER_ID>/config \
+curl http://localhost:8081/api/vpn/peers/<PEER_ID>/config \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
 **Удалить устройство:**
 ```bash
-curl -X DELETE http://localhost:8080/api/vpn/peers/<PEER_ID> \
+curl -X DELETE http://localhost:8081/api/vpn/peers/<PEER_ID> \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
@@ -254,8 +257,8 @@ sudo wg-quick up ./client.conf
 
 ## Структура базы данных
 
-- `users` - пользователи
-- `peers` - устройства пользователей
+- `users` - пользователи (username, email, password, is_admin, is_active)
+- `peers` - устройства пользователей (device_name, protocol, wg_public_key, wg_ip_address)
 - `refresh_tokens` - refresh токены для сессий
 
 ## Переменные окружения
@@ -270,7 +273,7 @@ sudo wg-quick up ./client.conf
 
 ## Админ-панель
 
-Веб-интерфейс для управления сервером доступен по адресу: `http://localhost:8080/admin/`
+Веб-интерфейс для управления сервером доступен по адресу: `http://localhost:8081/admin/`
 
 ### Возможности админ-панели
 
@@ -288,10 +291,10 @@ sudo wg-quick up ./client.conf
 docker exec -it vpn-postgres psql -U vpn -d vpn
 
 # Назначить администратора
-UPDATE users SET is_admin = true WHERE email = 'admin@example.com';
+UPDATE users SET is_admin = true WHERE username = 'admin';
 ```
 
-3. Откройте `http://localhost:8080/admin/` и войдите с учетными данными
+3. Откройте `http://localhost:8081/admin/` и войдите с учетными данными
 
 ### API админ-панели
 
