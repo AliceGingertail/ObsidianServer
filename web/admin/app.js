@@ -137,14 +137,14 @@ async function handleLogin(e) {
     e.preventDefault();
     loginError.textContent = '';
 
-    const email = document.getElementById('email').value;
+    const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
 
     try {
         const data = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify({ username, password }),
         }).then(r => r.json());
 
         if (data.error) {

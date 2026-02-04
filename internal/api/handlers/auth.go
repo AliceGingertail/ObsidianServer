@@ -25,7 +25,7 @@ type registerRequest struct {
 }
 
 type loginRequest struct {
-	Email    string `json:"email"`
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
@@ -81,15 +81,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		respondError(w, http.StatusBadRequest, "Email and password are required")
+	if req.Username == "" || req.Password == "" {
+		respondError(w, http.StatusBadRequest, "Username and password are required")
 		return
 	}
 
 	deviceInfo := r.Header.Get("User-Agent")
 
 	resp, err := h.authService.Login(r.Context(), &services.LoginRequest{
-		Email:    req.Email,
+		Username: req.Username,
 		Password: req.Password,
 	}, deviceInfo)
 

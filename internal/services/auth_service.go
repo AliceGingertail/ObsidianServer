@@ -37,7 +37,7 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	Email    string
+	Username string
 	Password string
 }
 
@@ -71,8 +71,8 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 }
 
 func (s *AuthService) Login(ctx context.Context, req *LoginRequest, deviceInfo string) (*AuthResponse, error) {
-	// Получаем пользователя
-	user, err := s.userRepo.GetByEmail(ctx, req.Email)
+	// Получаем пользователя по username
+	user, err := s.userRepo.GetByUsername(ctx, req.Username)
 	if err != nil {
 		if err == domerrors.ErrUserNotFound {
 			return nil, domerrors.ErrInvalidCredentials

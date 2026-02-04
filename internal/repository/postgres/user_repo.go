@@ -95,6 +95,35 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 	return user, nil
 }
 
+func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*models.User, error) {
+	query := `
+		SELECT id, username, email, password, is_active, is_admin, created_at, updated_at
+		FROM users
+		WHERE username = $1
+	`
+
+	user := &models.User{}
+	err := r.db.QueryRow(ctx, query, username).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.Password,
+		&user.IsActive,
+		&user.IsAdmin,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domerrors.ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	return user, nil
+}
+
 func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	query := `
 		UPDATE users
