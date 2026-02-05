@@ -588,6 +588,176 @@ tr:hover td {
     color: var(--accent);
 }
 
+/* Split Tunnel Modal */
+.split-tunnel-modes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.radio-card {
+    display: flex;
+    align-items: flex-start;
+    padding: 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-m);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.radio-card:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-hover);
+}
+
+.radio-card input[type="radio"] {
+    margin-right: 12px;
+    margin-top: 2px;
+    accent-color: var(--accent);
+}
+
+.radio-card input[type="radio"]:checked + .radio-label strong {
+    color: var(--accent);
+}
+
+.radio-label {
+    display: flex;
+    flex-direction: column;
+}
+
+.radio-label strong {
+    color: var(--text-normal);
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.radio-label small {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+#split-tunnel-rules-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+#split-tunnel-rules-section h4 {
+    color: var(--text-normal);
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.rules-add-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.rules-add-form select,
+.rules-add-form input {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    background: var(--bg-primary);
+    color: var(--text-normal);
+    font-size: 13px;
+    font-family: var(--font-ui);
+}
+
+.rules-add-form select {
+    min-width: 120px;
+}
+
+.rules-add-form input[type="text"] {
+    flex: 1;
+    min-width: 150px;
+}
+
+.rules-add-form .btn {
+    white-space: nowrap;
+}
+
+.rules-list {
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--bg-primary);
+    border-radius: var(--radius-s);
+    border: 1px solid var(--border);
+}
+
+.rules-list:empty::after {
+    content: "Нет правил";
+    display: block;
+    padding: 16px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+}
+
+.rule-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+}
+
+.rule-item:last-child {
+    border-bottom: none;
+}
+
+.rule-type {
+    background: var(--accent-muted);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: var(--radius-s);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    min-width: 60px;
+    text-align: center;
+}
+
+.rule-value {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-normal);
+}
+
+.rule-description {
+    color: var(--text-muted);
+    font-size: 12px;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rule-delete {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-s);
+    transition: all var(--transition);
+}
+
+.rule-delete:hover {
+    background: rgba(229, 72, 77, 0.15);
+    color: var(--danger);
+}
+
+.badge-warning {
+    background: rgba(224, 165, 38, 0.15);
+    color: var(--warning);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     header {
@@ -611,5 +781,14 @@ tr:hover td {
 
     table {
         min-width: 600px;
+    }
+
+    .rules-add-form {
+        flex-direction: column;
+    }
+
+    .rules-add-form select,
+    .rules-add-form input {
+        width: 100%;
     }
 }

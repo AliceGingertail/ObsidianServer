@@ -13,12 +13,13 @@ import (
 )
 
 type Router struct {
-	authHandler  *handlers.AuthHandler
-	userHandler  *handlers.UserHandler
-	peerHandler  *handlers.PeerHandler
-	vpnHandler   *handlers.VPNHandler
-	adminHandler *handlers.AdminHandler
-	authMW       *middleware.AuthMiddleware
+	authHandler        *handlers.AuthHandler
+	userHandler        *handlers.UserHandler
+	peerHandler        *handlers.PeerHandler
+	vpnHandler         *handlers.VPNHandler
+	adminHandler       *handlers.AdminHandler
+	splitTunnelHandler *handlers.SplitTunnelHandler
+	authMW             *middleware.AuthMiddleware
 }
 
 type ServerConfig struct {
@@ -34,15 +35,17 @@ func NewRouter(
 	userService *services.UserService,
 	peerService *services.PeerService,
 	vpnService *services.VPNService,
+	splitTunnelService *services.SplitTunnelService,
 	jwtManager *jwt.Manager,
 ) *Router {
 	return &Router{
-		authHandler:  handlers.NewAuthHandler(authService),
-		userHandler:  handlers.NewUserHandler(userService),
-		peerHandler:  handlers.NewPeerHandler(peerService),
-		vpnHandler:   handlers.NewVPNHandler(vpnService),
-		adminHandler: handlers.NewAdminHandler(userService, peerService),
-		authMW:       middleware.NewAuthMiddleware(jwtManager),
+		authHandler:        handlers.NewAuthHandler(authService),
+		userHandler:        handlers.NewUserHandler(userService),
+		peerHandler:        handlers.NewPeerHandlerWithSplitTunnel(peerService, splitTunnelService),
+		vpnHandler:         handlers.NewVPNHandler(vpnService),
+		adminHandler:       handlers.NewAdminHandler(userService, peerService),
+		splitTunnelHandler: handlers.NewSplitTunnelHandler(splitTunnelService, peerService),
+		authMW:             middleware.NewAuthMiddleware(jwtManager),
 	}
 }
 
@@ -51,6 +54,7 @@ func NewRouterWithConfig(
 	userService *services.UserService,
 	peerService *services.PeerService,
 	vpnService *services.VPNService,
+	splitTunnelService *services.SplitTunnelService,
 	jwtManager *jwt.Manager,
 	serverCfg *ServerConfig,
 ) *Router {
@@ -64,12 +68,13 @@ func NewRouterWithConfig(
 	}
 
 	return &Router{
-		authHandler:  handlers.NewAuthHandler(authService),
-		userHandler:  handlers.NewUserHandler(userService),
-		peerHandler:  handlers.NewPeerHandler(peerService),
-		vpnHandler:   handlers.NewVPNHandler(vpnService),
-		adminHandler: handlers.NewAdminHandlerWithConfig(userService, peerService, serverInfo),
-		authMW:       middleware.NewAuthMiddleware(jwtManager),
+		authHandler:        handlers.NewAuthHandler(authService),
+		userHandler:        handlers.NewUserHandler(userService),
+		peerHandler:        handlers.NewPeerHandlerWithSplitTunnel(peerService, splitTunnelService),
+		vpnHandler:         handlers.NewVPNHandler(vpnService),
+		adminHandler:       handlers.NewAdminHandlerWithConfig(userService, peerService, serverInfo),
+		splitTunnelHandler: handlers.NewSplitTunnelHandler(splitTunnelService, peerService),
+		authMW:             middleware.NewAuthMiddleware(jwtManager),
 	}
 }
 
@@ -130,6 +135,16 @@ func (rt *Router) Setup() *chi.Mux {
 					r.Get("/{id}", rt.peerHandler.GetPeer)
 					r.Get("/{id}/config", rt.peerHandler.GetPeerConfig)
 					r.Delete("/{id}", rt.peerHandler.DeletePeer)
+
+					// Split tunnel routes
+					r.Route("/{peerID}/split-tunnel", func(r chi.Router) {
+						r.Put("/mode", rt.splitTunnelHandler.SetSplitTunnelMode)
+						r.Get("/", rt.splitTunnelHandler.GetRules)
+						r.Post("/rules", rt.splitTunnelHandler.CreateRule)
+						r.Delete("/rules/{ruleID}", rt.splitTunnelHandler.DeleteRule)
+						r.Post("/refresh-domains", rt.splitTunnelHandler.RefreshDomains)
+						r.Get("/config", rt.splitTunnelHandler.GetConfigWithSplitTunnel)
+					})
 				})
 			})
 

@@ -50,6 +50,7 @@ func main() {
 	userRepo := postgres.NewUserRepository(dbPool)
 	peerRepo := postgres.NewPeerRepository(dbPool)
 	tokenRepo := postgres.NewRefreshTokenRepository(dbPool)
+	splitTunnelRepo := postgres.NewSplitTunnelRuleRepository(dbPool)
 
 	// Инициализируем JWT manager
 	jwtManager := jwt.NewManager(
@@ -92,6 +93,7 @@ func main() {
 		cfg.VPN.WireGuardSubnet,
 	)
 	vpnService := services.NewVPNService(vpnRegistry)
+	splitTunnelService := services.NewSplitTunnelService(splitTunnelRepo, peerRepo)
 
 	// Создаем роутер с конфигурацией сервера
 	serverCfg := &api.ServerConfig{
@@ -101,7 +103,7 @@ func main() {
 		WireGuardSubnet:   cfg.VPN.WireGuardSubnet,
 		MaxPeersPerUser:   cfg.VPN.MaxPeersPerUser,
 	}
-	router := api.NewRouterWithConfig(authService, userService, peerService, vpnService, jwtManager, serverCfg)
+	router := api.NewRouterWithConfig(authService, userService, peerService, vpnService, splitTunnelService, jwtManager, serverCfg)
 	handler := router.Setup()
 
 	// Настраиваем HTTP сервер

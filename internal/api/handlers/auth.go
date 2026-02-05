@@ -19,12 +19,13 @@ func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 }
 
 type registerRequest struct {
+	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 type loginRequest struct {
-	Email    string `json:"email"`
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
@@ -40,8 +41,13 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Валидация
-	if req.Email == "" || req.Password == "" {
-		respondError(w, http.StatusBadRequest, "Email and password are required")
+	if req.Username == "" || req.Email == "" || req.Password == "" {
+		respondError(w, http.StatusBadRequest, "Username, email and password are required")
+		return
+	}
+
+	if len(req.Username) < 3 {
+		respondError(w, http.StatusBadRequest, "Username must be at least 3 characters")
 		return
 	}
 
@@ -51,6 +57,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := h.authService.Register(r.Context(), &services.RegisterRequest{
+		Username: req.Username,
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -74,15 +81,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		respondError(w, http.StatusBadRequest, "Email and password are required")
+	if req.Username == "" || req.Password == "" {
+		respondError(w, http.StatusBadRequest, "Username and password are required")
 		return
 	}
 
 	deviceInfo := r.Header.Get("User-Agent")
 
 	resp, err := h.authService.Login(r.Context(), &services.LoginRequest{
-		Email:    req.Email,
+		Username: req.Username,
 		Password: req.Password,
 	}, deviceInfo)
 

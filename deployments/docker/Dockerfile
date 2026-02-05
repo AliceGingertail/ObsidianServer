@@ -15,7 +15,7 @@ COPY . .
 RUN go mod tidy
 
 # Build application
-RUN CGO_ENABLED=0 GOOS=linux go build -o /obsidian-server ./cmd/vpn-server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /obsidian-server ./cmd/obsidian-server
 
 # Final stage
 FROM debian:bookworm-slim

@@ -43,6 +43,10 @@ func (m *Manager) GenerateClientConfig(ctx context.Context, peer *models.Peer) (
 	return "", fmt.Errorf("OpenVPN support not implemented yet")
 }
 
+func (m *Manager) GenerateClientConfigWithAllowedIPs(ctx context.Context, peer *models.Peer, allowedIPs string) (string, error) {
+	return "", fmt.Errorf("OpenVPN support not implemented yet")
+}
+
 func (m *Manager) GetServerInfo(ctx context.Context) (map[string]string, error) {
 	return nil, fmt.Errorf("OpenVPN support not implemented yet")
 }

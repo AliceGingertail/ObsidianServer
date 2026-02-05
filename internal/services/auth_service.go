@@ -31,12 +31,13 @@ func NewAuthService(
 }
 
 type RegisterRequest struct {
+	Username string
 	Email    string
 	Password string
 }
 
 type LoginRequest struct {
-	Email    string
+	Username string
 	Password string
 }
 
@@ -47,7 +48,7 @@ type AuthResponse struct {
 }
 
 func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error) {
-	// Проверяем, существует ли пользователь
+	// Проверяем, существует ли пользователь с таким email
 	existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err == nil && existingUser != nil {
 		return nil, domerrors.ErrUserExists
@@ -60,7 +61,7 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 	}
 
 	// Создаем пользователя
-	user := models.NewUser(req.Email, passwordHash)
+	user := models.NewUser(req.Username, req.Email, passwordHash)
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -70,8 +71,8 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 }
 
 func (s *AuthService) Login(ctx context.Context, req *LoginRequest, deviceInfo string) (*AuthResponse, error) {
-	// Получаем пользователя
-	user, err := s.userRepo.GetByEmail(ctx, req.Email)
+	// Получаем пользователя по username
+	user, err := s.userRepo.GetByUsername(ctx, req.Username)
 	if err != nil {
 		if err == domerrors.ErrUserNotFound {
 			return nil, domerrors.ErrInvalidCredentials

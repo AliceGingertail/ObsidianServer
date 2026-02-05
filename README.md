@@ -10,6 +10,7 @@
 - Поддержка WireGuard
 - Автоматическое выделение IP-адресов
 - Генерация клиентских конфигураций
+- **Split Tunneling (раздельное туннелирование)**
 - REST API
 - PostgreSQL база данных
 - Поддержка OpenVPN (пока в разработке)
@@ -17,7 +18,7 @@
 ## Архитектура
 
 ```
-├── cmd/ObsidianServer/          # Точка входа
+├── cmd/obsidian-server/          # Точка входа
 ├── internal/
 │   ├── api/                 # HTTP handlers и роутер
 │   ├── config/              # Конфигурация
@@ -73,7 +74,7 @@ docker compose logs obsidian-server
 # Регистрация пользователя
 curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"password123"}'
+  -d '{"username":"admin","email":"admin@example.com","password":"password123"}'
 
 # Назначение прав администратора
 docker exec vpn-postgres psql -U vpn -d vpn -c \
@@ -114,6 +115,8 @@ GRANT ALL PRIVILEGES ON DATABASE vpn TO vpn;
 Примените миграции:
 ```bash
 psql -U vpn -d vpn -f internal/repository/migrations/001_init_schema.sql
+psql -U vpn -d vpn -f internal/repository/migrations/002_add_username.sql
+psql -U vpn -d vpn -f internal/repository/migrations/003_add_split_tunnel.sql
 ```
 
 ### 3. Настройте WireGuard
@@ -150,10 +153,10 @@ cp .env.example .env
 # Отредактируйте .env
 
 # Соберите
-go build -o ObsidianServer ./cmd/ObsidianServer
+go build -o obsidian-server ./cmd/obsidian-server
 
 # Запустите
-sudo ./ObsidianServer
+sudo ./obsidian-server
 ```
 
 ## API Документация
@@ -162,20 +165,21 @@ sudo ./ObsidianServer
 
 **Регистрация:**
 ```bash
-curl -X POST http://localhost:8080/api/auth/register \
+curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com",
+    "username": "john",
+    "email": "john@example.com",
     "password": "password123"
   }'
 ```
 
 **Вход:**
 ```bash
-curl -X POST http://localhost:8080/api/auth/login \
+curl -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com",
+    "username": "john",
     "password": "password123"
   }'
 ```
@@ -187,18 +191,19 @@ curl -X POST http://localhost:8080/api/auth/login \
   "refresh_token": "abc123...",
   "user": {
     "id": "uuid",
-    "email": "user@example.com",
+    "username": "john",
+    "email": "john@example.com",
     "is_active": true,
     "is_admin": false
   }
 }
 ```
 
-### Управление устройствами
+### Управление устройствами (peers)
 
 **Создать устройство:**
 ```bash
-curl -X POST http://localhost:8080/api/vpn/peers \
+curl -X POST http://localhost:8081/api/vpn/peers \
   -H "Authorization: Bearer <ACCESS_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -222,19 +227,19 @@ curl -X POST http://localhost:8080/api/vpn/peers \
 
 **Список устройств:**
 ```bash
-curl http://localhost:8080/api/vpn/peers \
+curl http://localhost:8081/api/vpn/peers \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
 **Получить конфигурацию:**
 ```bash
-curl http://localhost:8080/api/vpn/peers/<PEER_ID>/config \
+curl http://localhost:8081/api/vpn/peers/<PEER_ID>/config \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
 **Удалить устройство:**
 ```bash
-curl -X DELETE http://localhost:8080/api/vpn/peers/<PEER_ID> \
+curl -X DELETE http://localhost:8081/api/vpn/peers/<PEER_ID> \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
@@ -254,9 +259,10 @@ sudo wg-quick up ./client.conf
 
 ## Структура базы данных
 
-- `users` - пользователи
-- `peers` - устройства пользователей
+- `users` - пользователи (username, email, password, is_admin, is_active)
+- `peers` - устройства пользователей (device_name, protocol, wg_public_key, wg_ip_address, split_tunnel_mode)
 - `refresh_tokens` - refresh токены для сессий
+- `split_tunnel_rules` - правила раздельного туннелирования (peer_id, rule_type, value, resolved_ips)
 
 ## Переменные окружения
 
@@ -270,7 +276,7 @@ sudo wg-quick up ./client.conf
 
 ## Админ-панель
 
-Веб-интерфейс для управления сервером доступен по адресу: `http://localhost:8080/admin/`
+Веб-интерфейс для управления сервером доступен по адресу: `http://localhost:8081/admin/`
 
 ### Возможности админ-панели
 
@@ -288,10 +294,10 @@ sudo wg-quick up ./client.conf
 docker exec -it vpn-postgres psql -U vpn -d vpn
 
 # Назначить администратора
-UPDATE users SET is_admin = true WHERE email = 'admin@example.com';
+UPDATE users SET is_admin = true WHERE username = 'admin';
 ```
 
-3. Откройте `http://localhost:8080/admin/` и войдите с учетными данными
+3. Откройте `http://localhost:8081/admin/` и войдите с учетными данными
 
 ### API админ-панели
 
@@ -304,3 +310,51 @@ UPDATE users SET is_admin = true WHERE email = 'admin@example.com';
 | GET | /api/admin/peers | Список всех пиров |
 | POST | /api/admin/peers | Создать пир для пользователя |
 | DELETE | /api/admin/peers/{id} | Удалить пир |
+
+## Split Tunneling (Раздельное туннелирование)
+
+Split tunneling позволяет настроить, какой трафик направляется через VPN.
+
+### Режимы
+
+- **all** (по умолчанию) — весь трафик идёт через VPN
+- **include** — только трафик к указанным адресам идёт через VPN
+- **exclude** — весь трафик кроме указанных адресов идёт через VPN
+
+### API для Split Tunneling
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | /api/vpn/peers/{id}/split-tunnel | Получить настройки и правила |
+| PUT | /api/vpn/peers/{id}/split-tunnel/mode | Установить режим |
+| POST | /api/vpn/peers/{id}/split-tunnel/rules | Добавить правило |
+| DELETE | /api/vpn/peers/{id}/split-tunnel/rules/{ruleId} | Удалить правило |
+| POST | /api/vpn/peers/{id}/split-tunnel/refresh-domains | Обновить DNS для доменов |
+
+### Типы правил
+
+- **ip** — конкретный IP-адрес (например: `8.8.8.8`)
+- **cidr** — подсеть (например: `192.168.1.0/24`)
+- **domain** — доменное имя (например: `google.com`)
+
+### Примеры
+
+**Установить режим "только указанные":**
+```bash
+curl -X PUT http://localhost:8081/api/vpn/peers/<PEER_ID>/split-tunnel/mode \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"mode": "include"}'
+```
+
+**Добавить правило для домена:**
+```bash
+curl -X POST http://localhost:8081/api/vpn/peers/<PEER_ID>/split-tunnel/rules \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rule_type": "domain",
+    "value": "example.com",
+    "description": "Рабочий сайт"
+  }'
+```

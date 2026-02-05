@@ -14,8 +14,8 @@
                 <h1>Вход в панель администратора</h1>
                 <form id="login-form">
                     <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email" required>
+                        <label for="username">Имя пользователя</label>
+                        <input type="text" id="username" name="username" required>
                     </div>
                     <div class="form-group">
                         <label for="password">Пароль</label>
@@ -68,6 +68,7 @@
                             <thead>
                                 <tr>
                                     <th>ID</th>
+                                    <th>Имя пользователя </th>
                                     <th>Email</th>
                                     <th>Активен</th>
                                     <th>Админ</th>
@@ -99,10 +100,21 @@
                             <li><strong>Protocol</strong> — протокол VPN (WireGuard или OpenVPN)</li>
                             <li><strong>IP Address</strong> — внутренний IP-адрес устройства в VPN-сети</li>
                             <li><strong>Active</strong> — статус активности подключения</li>
+                            <li><strong>Split Tunnel</strong> — режим раздельного туннелирования трафика</li>
                         </ul>
                         <p class="info-note">
                             При создании пира автоматически генерируются ключи шифрования и конфигурационный файл для клиента.
                         </p>
+
+                        <h4 style="margin-top: 1rem;">Раздельное туннелирование (Split Tunnel)</h4>
+                        <p>
+                            Позволяет настроить, какой трафик направляется через VPN:
+                        </p>
+                        <ul>
+                            <li><strong>All (Весь)</strong> — весь трафик идёт через VPN (по умолчанию)</li>
+                            <li><strong>Include (Только указанные)</strong> — только трафик к указанным IP/доменам идёт через VPN</li>
+                            <li><strong>Exclude (Кроме указанных)</strong> — весь трафик кроме указанных адресов идёт через VPN</li>
+                        </ul>
                     </div>
 
                     <div class="table-container">
@@ -114,6 +126,7 @@
                                     <th>Устройство</th>
                                     <th>Протокол</th>
                                     <th>IP-адрес</th>
+                                    <th>Split Tunnel</th>
                                     <th>Активен</th>
                                     <th>Действия</th>
                                 </tr>
@@ -271,6 +284,61 @@ MAX_PEERS_PER_USER=5
             <div class="modal-actions">
                 <button class="btn btn-secondary" id="config-copy">Копировать</button>
                 <button class="btn btn-primary" id="config-close">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Split Tunnel Modal -->
+    <div id="split-tunnel-modal" class="modal hidden">
+        <div class="modal-content modal-wide">
+            <h3>Настройка раздельного туннелирования</h3>
+            <p class="modal-description" id="split-tunnel-peer-info"></p>
+
+            <div class="form-group">
+                <label>Режим туннелирования</label>
+                <div class="split-tunnel-modes">
+                    <label class="radio-card">
+                        <input type="radio" name="split-mode" value="all" checked>
+                        <span class="radio-label">
+                            <strong>Весь трафик</strong>
+                            <small>Весь интернет-трафик идёт через VPN</small>
+                        </span>
+                    </label>
+                    <label class="radio-card">
+                        <input type="radio" name="split-mode" value="include">
+                        <span class="radio-label">
+                            <strong>Только указанные</strong>
+                            <small>Только трафик к указанным адресам через VPN</small>
+                        </span>
+                    </label>
+                    <label class="radio-card">
+                        <input type="radio" name="split-mode" value="exclude">
+                        <span class="radio-label">
+                            <strong>Кроме указанных</strong>
+                            <small>Весь трафик через VPN, кроме указанных адресов</small>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="split-tunnel-rules-section" class="hidden">
+                <h4>Правила маршрутизации</h4>
+                <div class="rules-add-form">
+                    <select id="rule-type">
+                        <option value="ip">IP-адрес</option>
+                        <option value="cidr">CIDR (подсеть)</option>
+                        <option value="domain">Домен</option>
+                    </select>
+                    <input type="text" id="rule-value" placeholder="Например: 8.8.8.8 или google.com">
+                    <input type="text" id="rule-description" placeholder="Описание (опционально)">
+                    <button type="button" class="btn btn-primary" id="add-rule-btn">Добавить</button>
+                </div>
+                <div id="rules-list" class="rules-list"></div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="split-tunnel-cancel">Отмена</button>
+                <button class="btn btn-primary" id="split-tunnel-save">Сохранить</button>
             </div>
         </div>
     </div>

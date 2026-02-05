@@ -13,10 +13,10 @@ import (
 )
 
 type PeerService struct {
-	peerRepo     repository.PeerRepository
-	vpnRegistry  *vpn.Registry
+	peerRepo        repository.PeerRepository
+	vpnRegistry     *vpn.Registry
 	maxPeersPerUser int
-	subnet       string
+	subnet          string
 }
 
 func NewPeerService(
@@ -146,6 +146,20 @@ func (s *PeerService) GetPeerConfig(ctx context.Context, peerID, userID uuid.UUI
 	}
 
 	return provider.GenerateClientConfig(ctx, peer)
+}
+
+func (s *PeerService) GetPeerConfigWithAllowedIPs(ctx context.Context, peerID, userID uuid.UUID, allowedIPs string) (string, error) {
+	peer, err := s.GetPeerByID(ctx, peerID, userID)
+	if err != nil {
+		return "", err
+	}
+
+	provider, err := s.vpnRegistry.Get(peer.Protocol)
+	if err != nil {
+		return "", err
+	}
+
+	return provider.GenerateClientConfigWithAllowedIPs(ctx, peer, allowedIPs)
 }
 
 func (s *PeerService) DeletePeer(ctx context.Context, peerID, userID uuid.UUID) error {
