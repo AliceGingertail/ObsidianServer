@@ -10,6 +10,7 @@
 - Поддержка WireGuard
 - Автоматическое выделение IP-адресов
 - Генерация клиентских конфигураций
+- **Split Tunneling (раздельное туннелирование)**
 - REST API
 - PostgreSQL база данных
 - Поддержка OpenVPN (пока в разработке)
@@ -115,6 +116,7 @@ GRANT ALL PRIVILEGES ON DATABASE vpn TO vpn;
 ```bash
 psql -U vpn -d vpn -f internal/repository/migrations/001_init_schema.sql
 psql -U vpn -d vpn -f internal/repository/migrations/002_add_username.sql
+psql -U vpn -d vpn -f internal/repository/migrations/003_add_split_tunnel.sql
 ```
 
 ### 3. Настройте WireGuard
@@ -258,8 +260,9 @@ sudo wg-quick up ./client.conf
 ## Структура базы данных
 
 - `users` - пользователи (username, email, password, is_admin, is_active)
-- `peers` - устройства пользователей (device_name, protocol, wg_public_key, wg_ip_address)
+- `peers` - устройства пользователей (device_name, protocol, wg_public_key, wg_ip_address, split_tunnel_mode)
 - `refresh_tokens` - refresh токены для сессий
+- `split_tunnel_rules` - правила раздельного туннелирования (peer_id, rule_type, value, resolved_ips)
 
 ## Переменные окружения
 
@@ -307,3 +310,51 @@ UPDATE users SET is_admin = true WHERE username = 'admin';
 | GET | /api/admin/peers | Список всех пиров |
 | POST | /api/admin/peers | Создать пир для пользователя |
 | DELETE | /api/admin/peers/{id} | Удалить пир |
+
+## Split Tunneling (Раздельное туннелирование)
+
+Split tunneling позволяет настроить, какой трафик направляется через VPN.
+
+### Режимы
+
+- **all** (по умолчанию) — весь трафик идёт через VPN
+- **include** — только трафик к указанным адресам идёт через VPN
+- **exclude** — весь трафик кроме указанных адресов идёт через VPN
+
+### API для Split Tunneling
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | /api/vpn/peers/{id}/split-tunnel | Получить настройки и правила |
+| PUT | /api/vpn/peers/{id}/split-tunnel/mode | Установить режим |
+| POST | /api/vpn/peers/{id}/split-tunnel/rules | Добавить правило |
+| DELETE | /api/vpn/peers/{id}/split-tunnel/rules/{ruleId} | Удалить правило |
+| POST | /api/vpn/peers/{id}/split-tunnel/refresh-domains | Обновить DNS для доменов |
+
+### Типы правил
+
+- **ip** — конкретный IP-адрес (например: `8.8.8.8`)
+- **cidr** — подсеть (например: `192.168.1.0/24`)
+- **domain** — доменное имя (например: `google.com`)
+
+### Примеры
+
+**Установить режим "только указанные":**
+```bash
+curl -X PUT http://localhost:8081/api/vpn/peers/<PEER_ID>/split-tunnel/mode \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"mode": "include"}'
+```
+
+**Добавить правило для домена:**
+```bash
+curl -X POST http://localhost:8081/api/vpn/peers/<PEER_ID>/split-tunnel/rules \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rule_type": "domain",
+    "value": "example.com",
+    "description": "Рабочий сайт"
+  }'
+```

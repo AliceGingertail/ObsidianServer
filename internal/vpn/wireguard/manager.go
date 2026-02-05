@@ -132,12 +132,20 @@ func (m *Manager) RemovePeer(ctx context.Context, peer *models.Peer) error {
 }
 
 func (m *Manager) GenerateClientConfig(ctx context.Context, peer *models.Peer) (string, error) {
+	return m.GenerateClientConfigWithAllowedIPs(ctx, peer, m.config.AllowedIPs)
+}
+
+func (m *Manager) GenerateClientConfigWithAllowedIPs(ctx context.Context, peer *models.Peer, allowedIPs string) (string, error) {
 	if peer.WGPrivateKey == nil || peer.WGIPAddress == nil {
 		return "", fmt.Errorf("peer missing WireGuard credentials")
 	}
 
+	if allowedIPs == "" {
+		allowedIPs = m.config.AllowedIPs
+	}
+
 	var config strings.Builder
-	
+
 	config.WriteString("[Interface]\n")
 	config.WriteString(fmt.Sprintf("PrivateKey = %s\n", *peer.WGPrivateKey))
 	config.WriteString(fmt.Sprintf("Address = %s\n", *peer.WGIPAddress))
@@ -145,16 +153,16 @@ func (m *Manager) GenerateClientConfig(ctx context.Context, peer *models.Peer) (
 		config.WriteString(fmt.Sprintf("DNS = %s\n", m.config.DNS))
 	}
 	config.WriteString("\n")
-	
+
 	config.WriteString("[Peer]\n")
 	config.WriteString(fmt.Sprintf("PublicKey = %s\n", m.serverPublicKey))
 	config.WriteString(fmt.Sprintf("Endpoint = %s\n", m.config.Endpoint))
-	config.WriteString(fmt.Sprintf("AllowedIPs = %s\n", m.config.AllowedIPs))
-	
+	config.WriteString(fmt.Sprintf("AllowedIPs = %s\n", allowedIPs))
+
 	if peer.WGPreshared != nil && *peer.WGPreshared != "" {
 		config.WriteString(fmt.Sprintf("PresharedKey = %s\n", *peer.WGPreshared))
 	}
-	
+
 	config.WriteString("PersistentKeepalive = 25\n")
 
 	return config.String(), nil

@@ -12,12 +12,20 @@ import (
 )
 
 type PeerHandler struct {
-	peerService *services.PeerService
+	peerService        *services.PeerService
+	splitTunnelService *services.SplitTunnelService
 }
 
 func NewPeerHandler(peerService *services.PeerService) *PeerHandler {
 	return &PeerHandler{
 		peerService: peerService,
+	}
+}
+
+func NewPeerHandlerWithSplitTunnel(peerService *services.PeerService, splitTunnelService *services.SplitTunnelService) *PeerHandler {
+	return &PeerHandler{
+		peerService:        peerService,
+		splitTunnelService: splitTunnelService,
 	}
 }
 
@@ -120,18 +128,51 @@ func (h *PeerHandler) GetPeerConfig(w http.ResponseWriter, r *http.Request) {
 
 	userID := GetUserIDFromContext(r.Context())
 
-	config, err := h.peerService.GetPeerConfig(r.Context(), peerID, userID)
-	if err != nil {
-		if err == domerrors.ErrPeerNotFound {
-			respondError(w, http.StatusNotFound, "Peer not found")
+	var config string
+
+	// If split tunnel service is available, use it to generate config with proper AllowedIPs
+	if h.splitTunnelService != nil {
+		peer, err := h.peerService.GetPeerByID(r.Context(), peerID, userID)
+		if err != nil {
+			if err == domerrors.ErrPeerNotFound {
+				respondError(w, http.StatusNotFound, "Peer not found")
+				return
+			}
+			if err == domerrors.ErrForbidden {
+				respondError(w, http.StatusForbidden, "Access denied")
+				return
+			}
+			respondError(w, http.StatusInternalServerError, "Failed to get peer")
 			return
 		}
-		if err == domerrors.ErrForbidden {
-			respondError(w, http.StatusForbidden, "Access denied")
+
+		allowedIPs, err := h.splitTunnelService.GetAllowedIPs(r.Context(), peer)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "Failed to calculate allowed IPs")
 			return
 		}
-		respondError(w, http.StatusInternalServerError, "Failed to get peer config")
-		return
+
+		config, err = h.peerService.GetPeerConfigWithAllowedIPs(r.Context(), peerID, userID, allowedIPs)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "Failed to get peer config")
+			return
+		}
+	} else {
+		// Fallback to standard config generation
+		var err error
+		config, err = h.peerService.GetPeerConfig(r.Context(), peerID, userID)
+		if err != nil {
+			if err == domerrors.ErrPeerNotFound {
+				respondError(w, http.StatusNotFound, "Peer not found")
+				return
+			}
+			if err == domerrors.ErrForbidden {
+				respondError(w, http.StatusForbidden, "Access denied")
+				return
+			}
+			respondError(w, http.StatusInternalServerError, "Failed to get peer config")
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/plain")

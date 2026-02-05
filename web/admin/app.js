@@ -36,6 +36,16 @@ const configContent = document.getElementById('config-content');
 const configCopy = document.getElementById('config-copy');
 const configClose = document.getElementById('config-close');
 
+// Split Tunnel Modal
+const splitTunnelModal = document.getElementById('split-tunnel-modal');
+const splitTunnelCancel = document.getElementById('split-tunnel-cancel');
+const splitTunnelSave = document.getElementById('split-tunnel-save');
+const splitTunnelPeerInfo = document.getElementById('split-tunnel-peer-info');
+const splitTunnelRulesSection = document.getElementById('split-tunnel-rules-section');
+const addRuleBtn = document.getElementById('add-rule-btn');
+const rulesList = document.getElementById('rules-list');
+let currentSplitTunnelPeerID = null;
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     if (token) {
@@ -92,6 +102,22 @@ function setupEventListeners() {
         configModal.classList.add('hidden');
         loadPeers();
         loadStats();
+    });
+
+    // Split tunnel modal
+    splitTunnelCancel.addEventListener('click', closeSplitTunnelModal);
+    splitTunnelSave.addEventListener('click', saveSplitTunnelSettings);
+    addRuleBtn.addEventListener('click', addSplitTunnelRule);
+
+    // Show/hide rules section based on mode
+    document.querySelectorAll('input[name="split-mode"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target.value === 'all') {
+                splitTunnelRulesSection.classList.add('hidden');
+            } else {
+                splitTunnelRulesSection.classList.remove('hidden');
+            }
+        });
     });
 }
 
@@ -277,12 +303,14 @@ async function loadPeers() {
         tbody.innerHTML = '';
 
         if (!peers || peers.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa;">Пиры не найдены</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#aaa;">Пиры не найдены</td></tr>';
             return;
         }
 
         peers.forEach(peer => {
             const ipAddress = peer.wg_ip_address || peer.ovpn_ip_address || '-';
+            const splitMode = peer.split_tunnel_mode || 'all';
+            const splitModeLabel = getSplitModeLabel(splitMode);
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td title="${peer.id}">${peer.id.substring(0, 8)}...</td>
@@ -290,6 +318,10 @@ async function loadPeers() {
                 <td>${escapeHtml(peer.device_name)}</td>
                 <td><span class="badge badge-info">${peer.protocol}</span></td>
                 <td>${escapeHtml(ipAddress)}</td>
+                <td>
+                    <span class="badge ${getSplitModeBadgeClass(splitMode)}">${splitModeLabel}</span>
+                    <button class="btn btn-secondary btn-sm" style="margin-left: 4px;" onclick="openSplitTunnelModal('${peer.id}', '${escapeHtml(peer.device_name)}', '${splitMode}')">⚙</button>
+                </td>
                 <td><span class="badge ${peer.is_active ? 'badge-success' : 'badge-danger'}">${peer.is_active ? 'Да' : 'Нет'}</span></td>
                 <td>
                     <button class="btn btn-danger btn-sm" onclick="deletePeer('${peer.id}', '${escapeHtml(peer.device_name)}')">Удалить</button>
@@ -299,6 +331,24 @@ async function loadPeers() {
         });
     } catch (err) {
         console.error('Ошибка загрузки пиров:', err);
+    }
+}
+
+function getSplitModeLabel(mode) {
+    switch (mode) {
+        case 'all': return 'Весь';
+        case 'include': return 'Только';
+        case 'exclude': return 'Кроме';
+        default: return mode;
+    }
+}
+
+function getSplitModeBadgeClass(mode) {
+    switch (mode) {
+        case 'all': return 'badge-success';
+        case 'include': return 'badge-info';
+        case 'exclude': return 'badge-warning';
+        default: return '';
     }
 }
 
@@ -414,6 +464,123 @@ function formatDate(dateString) {
     return date.toLocaleDateString('ru-RU') + ' ' + date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Split Tunnel Functions
+async function openSplitTunnelModal(peerID, deviceName, currentMode) {
+    currentSplitTunnelPeerID = peerID;
+    splitTunnelPeerInfo.textContent = `Настройка для устройства: ${deviceName}`;
+
+    // Set current mode
+    document.querySelector(`input[name="split-mode"][value="${currentMode}"]`).checked = true;
+
+    // Show/hide rules section
+    if (currentMode === 'all') {
+        splitTunnelRulesSection.classList.add('hidden');
+    } else {
+        splitTunnelRulesSection.classList.remove('hidden');
+    }
+
+    // Load rules
+    await loadSplitTunnelRules(peerID);
+
+    splitTunnelModal.classList.remove('hidden');
+}
+
+function closeSplitTunnelModal() {
+    splitTunnelModal.classList.add('hidden');
+    currentSplitTunnelPeerID = null;
+    rulesList.innerHTML = '';
+}
+
+async function loadSplitTunnelRules(peerID) {
+    try {
+        const data = await apiRequest(`/vpn/peers/${peerID}/split-tunnel`);
+        renderRulesList(data.rules || []);
+    } catch (err) {
+        console.error('Ошибка загрузки правил:', err);
+        rulesList.innerHTML = '';
+    }
+}
+
+function renderRulesList(rules) {
+    rulesList.innerHTML = '';
+
+    if (!rules || rules.length === 0) {
+        return;
+    }
+
+    rules.forEach(rule => {
+        const div = document.createElement('div');
+        div.className = 'rule-item';
+        div.innerHTML = `
+            <span class="rule-type">${rule.rule_type}</span>
+            <span class="rule-value">${escapeHtml(rule.value)}</span>
+            <span class="rule-description">${escapeHtml(rule.description || '')}</span>
+            <button class="rule-delete" onclick="deleteSplitTunnelRule('${rule.id}')" title="Удалить">✕</button>
+        `;
+        rulesList.appendChild(div);
+    });
+}
+
+async function addSplitTunnelRule() {
+    const ruleType = document.getElementById('rule-type').value;
+    const ruleValue = document.getElementById('rule-value').value.trim();
+    const ruleDescription = document.getElementById('rule-description').value.trim();
+
+    if (!ruleValue) {
+        alert('Введите значение правила');
+        return;
+    }
+
+    try {
+        await apiRequest(`/vpn/peers/${currentSplitTunnelPeerID}/split-tunnel/rules`, {
+            method: 'POST',
+            body: JSON.stringify({
+                rule_type: ruleType,
+                value: ruleValue,
+                description: ruleDescription
+            })
+        });
+
+        // Clear inputs
+        document.getElementById('rule-value').value = '';
+        document.getElementById('rule-description').value = '';
+
+        // Reload rules
+        await loadSplitTunnelRules(currentSplitTunnelPeerID);
+    } catch (err) {
+        alert('Ошибка добавления правила: ' + err.message);
+    }
+}
+
+async function deleteSplitTunnelRule(ruleID) {
+    try {
+        await apiRequest(`/vpn/peers/${currentSplitTunnelPeerID}/split-tunnel/rules/${ruleID}`, {
+            method: 'DELETE'
+        });
+        await loadSplitTunnelRules(currentSplitTunnelPeerID);
+    } catch (err) {
+        alert('Ошибка удаления правила: ' + err.message);
+    }
+}
+
+async function saveSplitTunnelSettings() {
+    const mode = document.querySelector('input[name="split-mode"]:checked').value;
+
+    try {
+        await apiRequest(`/vpn/peers/${currentSplitTunnelPeerID}/split-tunnel/mode`, {
+            method: 'PUT',
+            body: JSON.stringify({ mode: mode })
+        });
+
+        closeSplitTunnelModal();
+        loadPeers();
+    } catch (err) {
+        alert('Ошибка сохранения настроек: ' + err.message);
+    }
+}
+
 // Make delete functions global for onclick handlers
 window.deleteUser = deleteUser;
 window.deletePeer = deletePeer;
+window.openSplitTunnelModal = openSplitTunnelModal;
+window.deleteSplitTunnelRule = deleteSplitTunnelRule;

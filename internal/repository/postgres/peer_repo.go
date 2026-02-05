@@ -28,9 +28,10 @@ func (r *PeerRepository) Create(ctx context.Context, peer *models.Peer) error {
 			id, user_id, device_name, protocol,
 			wg_public_key, wg_private_key, wg_preshared, wg_ip_address,
 			ovpn_certificate, ovpn_private_key, ovpn_ip_address,
+			split_tunnel_mode,
 			is_active, last_seen, created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 	_, err := r.db.Exec(ctx, query,
 		peer.ID,
@@ -44,6 +45,7 @@ func (r *PeerRepository) Create(ctx context.Context, peer *models.Peer) error {
 		peer.OVPNCertificate,
 		peer.OVPNPrivateKey,
 		peer.OVPNIPAddress,
+		peer.SplitTunnelMode,
 		peer.IsActive,
 		peer.LastSeen,
 		peer.CreatedAt,
@@ -57,11 +59,12 @@ func (r *PeerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Pee
 		SELECT id, user_id, device_name, protocol,
 			wg_public_key, wg_private_key, wg_preshared, wg_ip_address,
 			ovpn_certificate, ovpn_private_key, ovpn_ip_address,
+			split_tunnel_mode,
 			is_active, last_seen, created_at, updated_at
 		FROM peers
 		WHERE id = $1
 	`
-	
+
 	peer := &models.Peer{}
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&peer.ID,
@@ -75,19 +78,20 @@ func (r *PeerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Pee
 		&peer.OVPNCertificate,
 		&peer.OVPNPrivateKey,
 		&peer.OVPNIPAddress,
+		&peer.SplitTunnelMode,
 		&peer.IsActive,
 		&peer.LastSeen,
 		&peer.CreatedAt,
 		&peer.UpdatedAt,
 	)
-	
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domerrors.ErrPeerNotFound
 		}
 		return nil, err
 	}
-	
+
 	return peer, nil
 }
 
@@ -96,18 +100,19 @@ func (r *PeerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*
 		SELECT id, user_id, device_name, protocol,
 			wg_public_key, wg_private_key, wg_preshared, wg_ip_address,
 			ovpn_certificate, ovpn_private_key, ovpn_ip_address,
+			split_tunnel_mode,
 			is_active, last_seen, created_at, updated_at
 		FROM peers
 		WHERE user_id = $1
 		ORDER BY created_at DESC
 	`
-	
+
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var peers []*models.Peer
 	for rows.Next() {
 		peer := &models.Peer{}
@@ -123,6 +128,7 @@ func (r *PeerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*
 			&peer.OVPNCertificate,
 			&peer.OVPNPrivateKey,
 			&peer.OVPNIPAddress,
+			&peer.SplitTunnelMode,
 			&peer.IsActive,
 			&peer.LastSeen,
 			&peer.CreatedAt,
@@ -133,7 +139,7 @@ func (r *PeerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*
 		}
 		peers = append(peers, peer)
 	}
-	
+
 	return peers, rows.Err()
 }
 
@@ -142,11 +148,12 @@ func (r *PeerRepository) GetByPublicKey(ctx context.Context, publicKey string) (
 		SELECT id, user_id, device_name, protocol,
 			wg_public_key, wg_private_key, wg_preshared, wg_ip_address,
 			ovpn_certificate, ovpn_private_key, ovpn_ip_address,
+			split_tunnel_mode,
 			is_active, last_seen, created_at, updated_at
 		FROM peers
 		WHERE wg_public_key = $1
 	`
-	
+
 	peer := &models.Peer{}
 	err := r.db.QueryRow(ctx, query, publicKey).Scan(
 		&peer.ID,
@@ -160,19 +167,20 @@ func (r *PeerRepository) GetByPublicKey(ctx context.Context, publicKey string) (
 		&peer.OVPNCertificate,
 		&peer.OVPNPrivateKey,
 		&peer.OVPNIPAddress,
+		&peer.SplitTunnelMode,
 		&peer.IsActive,
 		&peer.LastSeen,
 		&peer.CreatedAt,
 		&peer.UpdatedAt,
 	)
-	
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domerrors.ErrPeerNotFound
 		}
 		return nil, err
 	}
-	
+
 	return peer, nil
 }
 
@@ -190,10 +198,11 @@ func (r *PeerRepository) Update(ctx context.Context, peer *models.Peer) error {
 		SET device_name = $2, protocol = $3,
 			wg_public_key = $4, wg_private_key = $5, wg_preshared = $6, wg_ip_address = $7,
 			ovpn_certificate = $8, ovpn_private_key = $9, ovpn_ip_address = $10,
-			is_active = $11, last_seen = $12
+			split_tunnel_mode = $11,
+			is_active = $12, last_seen = $13
 		WHERE id = $1
 	`
-	
+
 	result, err := r.db.Exec(ctx, query,
 		peer.ID,
 		peer.DeviceName,
@@ -205,18 +214,19 @@ func (r *PeerRepository) Update(ctx context.Context, peer *models.Peer) error {
 		peer.OVPNCertificate,
 		peer.OVPNPrivateKey,
 		peer.OVPNIPAddress,
+		peer.SplitTunnelMode,
 		peer.IsActive,
 		peer.LastSeen,
 	)
-	
+
 	if err != nil {
 		return err
 	}
-	
+
 	if result.RowsAffected() == 0 {
 		return domerrors.ErrPeerNotFound
 	}
-	
+
 	return nil
 }
 
@@ -278,6 +288,7 @@ func (r *PeerRepository) GetAll(ctx context.Context) ([]*models.Peer, error) {
 		SELECT id, user_id, device_name, protocol,
 			wg_public_key, wg_private_key, wg_preshared, wg_ip_address,
 			ovpn_certificate, ovpn_private_key, ovpn_ip_address,
+			split_tunnel_mode,
 			is_active, last_seen, created_at, updated_at
 		FROM peers
 		ORDER BY created_at DESC
@@ -304,6 +315,7 @@ func (r *PeerRepository) GetAll(ctx context.Context) ([]*models.Peer, error) {
 			&peer.OVPNCertificate,
 			&peer.OVPNPrivateKey,
 			&peer.OVPNIPAddress,
+			&peer.SplitTunnelMode,
 			&peer.IsActive,
 			&peer.LastSeen,
 			&peer.CreatedAt,

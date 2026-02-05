@@ -40,3 +40,13 @@ type RefreshTokenRepository interface {
 	DeleteByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteExpired(ctx context.Context) error
 }
+
+type SplitTunnelRuleRepository interface {
+	Create(ctx context.Context, rule *models.SplitTunnelRule) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.SplitTunnelRule, error)
+	GetByPeerID(ctx context.Context, peerID uuid.UUID) ([]*models.SplitTunnelRule, error)
+	GetActiveByPeerID(ctx context.Context, peerID uuid.UUID) ([]*models.SplitTunnelRule, error)
+	Update(ctx context.Context, rule *models.SplitTunnelRule) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	DeleteByPeerID(ctx context.Context, peerID uuid.UUID) error
+}
