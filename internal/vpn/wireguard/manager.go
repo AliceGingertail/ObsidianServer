@@ -146,24 +146,24 @@ func (m *Manager) GenerateClientConfigWithAllowedIPs(ctx context.Context, peer *
 
 	var config strings.Builder
 
-	config.WriteString("[Interface]\n")
-	config.WriteString(fmt.Sprintf("PrivateKey = %s\n", *peer.WGPrivateKey))
-	config.WriteString(fmt.Sprintf("Address = %s\n", *peer.WGIPAddress))
+	_, _ = config.WriteString("[Interface]\n")
+	_, _ = config.WriteString(fmt.Sprintf("PrivateKey = %s\n", *peer.WGPrivateKey))
+	_, _ = config.WriteString(fmt.Sprintf("Address = %s\n", *peer.WGIPAddress))
 	if m.config.DNS != "" {
-		config.WriteString(fmt.Sprintf("DNS = %s\n", m.config.DNS))
+		_, _ = config.WriteString(fmt.Sprintf("DNS = %s\n", m.config.DNS))
 	}
-	config.WriteString("\n")
+	_, _ = config.WriteString("\n")
 
-	config.WriteString("[Peer]\n")
-	config.WriteString(fmt.Sprintf("PublicKey = %s\n", m.serverPublicKey))
-	config.WriteString(fmt.Sprintf("Endpoint = %s\n", m.config.Endpoint))
-	config.WriteString(fmt.Sprintf("AllowedIPs = %s\n", allowedIPs))
+	_, _ = config.WriteString("[Peer]\n")
+	_, _ = config.WriteString(fmt.Sprintf("PublicKey = %s\n", m.serverPublicKey))
+	_, _ = config.WriteString(fmt.Sprintf("Endpoint = %s\n", m.config.Endpoint))
+	_, _ = config.WriteString(fmt.Sprintf("AllowedIPs = %s\n", allowedIPs))
 
 	if peer.WGPreshared != nil && *peer.WGPreshared != "" {
-		config.WriteString(fmt.Sprintf("PresharedKey = %s\n", *peer.WGPreshared))
+		_, _ = config.WriteString(fmt.Sprintf("PresharedKey = %s\n", *peer.WGPreshared))
 	}
 
-	config.WriteString("PersistentKeepalive = 25\n")
+	_, _ = config.WriteString("PersistentKeepalive = 25\n")
 
 	return config.String(), nil
 }

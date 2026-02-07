@@ -36,13 +36,6 @@ type createRuleRequest struct {
 	Description string          `json:"description,omitempty"`
 }
 
-type updateRuleRequest struct {
-	RuleType    models.RuleType `json:"rule_type,omitempty"`
-	Value       string          `json:"value,omitempty"`
-	Description string          `json:"description,omitempty"`
-	IsActive    *bool           `json:"is_active,omitempty"`
-}
-
 // SetSplitTunnelMode sets the split tunnel mode for a peer
 func (h *SplitTunnelHandler) SetSplitTunnelMode(w http.ResponseWriter, r *http.Request) {
 	peerIDStr := chi.URLParam(r, "peerID")
