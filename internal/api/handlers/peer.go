@@ -177,7 +177,7 @@ func (h *PeerHandler) GetPeerConfig(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(config))
+	_, _ = w.Write([]byte(config))
 }
 
 func (h *PeerHandler) DeletePeer(w http.ResponseWriter, r *http.Request) {
