@@ -9,37 +9,167 @@ permissions:
   contents: write
 
 jobs:
+  build-docker:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Set platform name
+        id: platform
+        run: |
+          platform="${{ matrix.platform }}"
+          echo "name=${platform//\//_}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./deployments/docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=docker,dest=obsidian-server_${{ steps.version.outputs.version }}_${{ steps.platform.outputs.name }}.tar
+          tags: obsidian-server:${{ steps.version.outputs.version }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+
+      - name: Compress image
+        run: gzip obsidian-server_${{ steps.version.outputs.version }}_${{ steps.platform.outputs.name }}.tar
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-${{ steps.platform.outputs.name }}
+          path: obsidian-server_${{ steps.version.outputs.version }}_${{ steps.platform.outputs.name }}.tar.gz
+
   release:
     runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-          cache: true
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  deploy-docs:
-    runs-on: ubuntu-latest
-    needs: release
+    needs: build-docker
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy documentation
-        run: echo "Documentation deployment placeholder"
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Prepare release archives
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+
+          # Для каждой платформы создаём полный архив
+          for platform in linux_amd64 linux_arm64; do
+            dir="obsidian-server_${VERSION}_${platform}"
+            mkdir -p "$dir/migrations"
+
+            # Docker-образ
+            gunzip -c "artifacts/obsidian-server_${VERSION}_${platform}.tar.gz" > "$dir/image.tar"
+
+            # Конфиги
+            cp deployments/docker/docker-compose.yml "$dir/"
+            cp deployments/docker/.env.example "$dir/"
+
+            # Миграции
+            cp internal/repository/migrations/*.sql "$dir/migrations/"
+
+            # Скрипт установки
+            cat > "$dir/install.sh" << 'EOF'
+          #!/bin/bash
+          set -e
+          echo "Загрузка Docker-образа..."
+          docker load < image.tar
+          echo "Готово!"
+          echo ""
+          echo "Следующие шаги:"
+          echo "1. cp .env.example .env"
+          echo "2. nano .env  # настроить переменные"
+          echo "3. docker compose up -d"
+          EOF
+            chmod +x "$dir/install.sh"
+
+            # README
+            cat > "$dir/README.txt" << EOF
+          ObsidianServer v${VERSION}
+
+          Быстрый старт:
+          1. ./install.sh        # загрузить Docker-образ
+          2. cp .env.example .env
+          3. nano .env           # настроить WIREGUARD_ENDPOINT, JWT секреты
+          4. docker compose up -d
+
+          Содержимое:
+          - image.tar            Docker-образ
+          - docker-compose.yml   Compose-файл
+          - .env.example         Пример конфигурации
+          - migrations/          SQL-миграции (применяются автоматически)
+          - install.sh           Скрипт установки
+
+          Требования:
+          - Docker 20.10+
+          - Docker Compose v2
+          - WireGuard на хосте
+          EOF
+
+            # Упаковать
+            tar -czvf "${dir}.tar.gz" "$dir"
+          done
+
+          # Checksums
+          sha256sum *.tar.gz > checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ObsidianServer v${{ steps.version.outputs.version }}
+          body: |
+            ## ObsidianServer v${{ steps.version.outputs.version }}
+
+            ### Установка
+
+            ```bash
+            # Скачать
+            curl -LO https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/obsidian-server_${{ steps.version.outputs.version }}_linux_amd64.tar.gz
+
+            # Распаковать
+            tar -xzf obsidian-server_${{ steps.version.outputs.version }}_linux_amd64.tar.gz
+            cd obsidian-server_${{ steps.version.outputs.version }}_linux_amd64
+
+            # Установить
+            ./install.sh
+            cp .env.example .env
+            nano .env
+            docker compose up -d
+            ```
+
+            ### Архивы
+
+            | Платформа | Файл |
+            |-----------|------|
+            | x86_64 | `obsidian-server_${{ steps.version.outputs.version }}_linux_amd64.tar.gz` |
+            | ARM64 | `obsidian-server_${{ steps.version.outputs.version }}_linux_arm64.tar.gz` |
+
+          files: |
+            obsidian-server_*.tar.gz
+            checksums.txt
