@@ -46,6 +46,13 @@ const addRuleBtn = document.getElementById('add-rule-btn');
 const rulesList = document.getElementById('rules-list');
 let currentSplitTunnelPeerID = null;
 
+// Endpoint Modal
+const endpointModal = document.getElementById('endpoint-modal');
+const endpointForm = document.getElementById('endpoint-form');
+const endpointValue = document.getElementById('endpoint-value');
+const endpointCancel = document.getElementById('endpoint-cancel');
+const editEndpointBtn = document.getElementById('edit-endpoint-btn');
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     if (token) {
@@ -119,6 +126,14 @@ function setupEventListeners() {
             }
         });
     });
+
+    // Endpoint modal
+    editEndpointBtn.addEventListener('click', openEndpointModal);
+    endpointCancel.addEventListener('click', () => {
+        endpointModal.classList.add('hidden');
+        endpointForm.reset();
+    });
+    endpointForm.addEventListener('submit', handleUpdateEndpoint);
 }
 
 // API Helper
@@ -433,13 +448,63 @@ async function loadSettings() {
             info.wireguard_enabled
                 ? '<span class="badge badge-success">Включен</span>'
                 : '<span class="badge badge-danger">Выключен</span>';
-        document.getElementById('setting-wg-endpoint').textContent = info.wireguard_endpoint || '-';
+
+        const endpointEl = document.getElementById('setting-wg-endpoint');
+        const endpoint = info.wireguard_endpoint || '-';
+
+        if (endpoint.includes('localhost') || endpoint.includes('127.0.0.1')) {
+            endpointEl.innerHTML = `<span class="text-warning">${endpoint}</span>`;
+        } else {
+            endpointEl.textContent = endpoint;
+        }
+
         document.getElementById('setting-wg-port').textContent = info.wireguard_port || '-';
         document.getElementById('setting-wg-subnet').textContent = info.wireguard_subnet || '-';
         document.getElementById('setting-max-peers').textContent = info.max_peers_per_user || '-';
         document.getElementById('setting-version').textContent = info.server_version || '-';
     } catch (err) {
         console.error('Ошибка загрузки настроек:', err);
+    }
+}
+
+// Endpoint editing
+function openEndpointModal() {
+    const currentEndpoint = document.getElementById('setting-wg-endpoint').textContent.trim();
+    if (currentEndpoint && currentEndpoint !== '-') {
+        endpointValue.value = currentEndpoint;
+    }
+    endpointModal.classList.remove('hidden');
+}
+
+async function handleUpdateEndpoint(e) {
+    e.preventDefault();
+
+    const newEndpoint = endpointValue.value.trim();
+    if (!newEndpoint) {
+        alert('Введите endpoint');
+        return;
+    }
+
+    // Валидация формата
+    const endpointRegex = /^[\w.\-]+:\d+$/;
+    if (!endpointRegex.test(newEndpoint)) {
+        alert('Неверный формат. Используйте: IP:порт или домен:порт');
+        return;
+    }
+
+    try {
+        await apiRequest('/admin/endpoint', {
+            method: 'PUT',
+            body: JSON.stringify({ endpoint: newEndpoint })
+        });
+
+        endpointModal.classList.add('hidden');
+        endpointForm.reset();
+        loadSettings();
+
+        alert('Endpoint успешно обновлён. Новые конфигурации клиентов будут использовать этот адрес.');
+    } catch (err) {
+        alert('Ошибка обновления endpoint: ' + err.message);
     }
 }
 

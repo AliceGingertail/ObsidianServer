@@ -191,9 +191,10 @@ MAX_PEERS_PER_USER=5
                                 <span class="settings-label">Статус:</span>
                                 <span id="setting-wg-enabled" class="settings-value">-</span>
                             </div>
-                            <div class="settings-item">
+                            <div class="settings-item settings-editable">
                                 <span class="settings-label">Endpoint:</span>
                                 <span id="setting-wg-endpoint" class="settings-value">-</span>
+                                <button class="btn btn-small" id="edit-endpoint-btn" title="Редактировать">✎</button>
                             </div>
                             <div class="settings-item">
                                 <span class="settings-label">Порт:</span>
@@ -285,6 +286,30 @@ MAX_PEERS_PER_USER=5
                 <button class="btn btn-secondary" id="config-copy">Копировать</button>
                 <button class="btn btn-primary" id="config-close">Закрыть</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Edit Endpoint Modal -->
+    <div id="endpoint-modal" class="modal hidden">
+        <div class="modal-content modal-form">
+            <h3>Изменить Endpoint</h3>
+            <p class="modal-description">
+                Укажите публичный IP-адрес или домен сервера с портом WireGuard.
+                Этот адрес будет использоваться в конфигурациях клиентов.
+            </p>
+            <form id="endpoint-form">
+                <div class="form-group">
+                    <label for="endpoint-value">Endpoint (IP:порт или домен:порт)</label>
+                    <input type="text" id="endpoint-value" placeholder="например: 203.0.113.1:51820 или vpn.example.com:51820" required>
+                </div>
+                <p class="info-note">
+                    Если сервер за NAT, укажите внешний IP роутера и настройте проброс порта 51820/UDP.
+                </p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="endpoint-cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
         </div>
     </div>
 

@@ -2,7 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
+	"regexp"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -136,6 +140,54 @@ type adminCreatePeerRequest struct {
 	UserID     string          `json:"user_id"`
 	DeviceName string          `json:"device_name"`
 	Protocol   models.Protocol `json:"protocol"`
+}
+
+type updateEndpointRequest struct {
+	Endpoint string `json:"endpoint"`
+}
+
+const serverConfigPath = "/etc/wireguard/.server_config"
+
+// UpdateEndpoint updates the WireGuard endpoint
+func (h *AdminHandler) UpdateEndpoint(w http.ResponseWriter, r *http.Request) {
+	var req updateEndpointRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	endpoint := strings.TrimSpace(req.Endpoint)
+	if endpoint == "" {
+		respondError(w, http.StatusBadRequest, "Endpoint is required")
+		return
+	}
+
+	// Валидация формата endpoint (ip:port или domain:port)
+	endpointRegex := regexp.MustCompile(`^[\w\.\-]+:\d+$`)
+	if !endpointRegex.MatchString(endpoint) {
+		respondError(w, http.StatusBadRequest, "Invalid endpoint format. Use: ip:port or domain:port")
+		return
+	}
+
+	// Сохраняем в файл конфигурации
+	content := fmt.Sprintf("export WIREGUARD_ENDPOINT=\"%s\"\n", endpoint)
+	if err := os.WriteFile(serverConfigPath, []byte(content), 0600); err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to save endpoint")
+		return
+	}
+
+	// Обновляем переменную окружения для текущего процесса
+	os.Setenv("WIREGUARD_ENDPOINT", endpoint)
+
+	// Обновляем serverInfo если он есть
+	if h.serverInfo != nil {
+		h.serverInfo.WireGuardEndpoint = endpoint
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{
+		"message":  "Endpoint updated successfully",
+		"endpoint": endpoint,
+	})
 }
 
 func (h *AdminHandler) CreatePeer(w http.ResponseWriter, r *http.Request) {

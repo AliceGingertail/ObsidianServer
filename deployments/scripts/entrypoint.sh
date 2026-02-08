@@ -30,6 +30,34 @@ EOF
     export JWT_REFRESH_SECRET
 fi
 
+# Загрузка/установка WIREGUARD_ENDPOINT
+CONFIG_FILE="/etc/wireguard/.server_config"
+
+if [ -f "$CONFIG_FILE" ]; then
+    echo "Loading saved server config..."
+    source "$CONFIG_FILE"
+fi
+
+if [ -z "$WIREGUARD_ENDPOINT" ]; then
+    # Пробуем определить публичный IP автоматически
+    PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || curl -s --max-time 5 ip.me 2>/dev/null || echo "")
+
+    if [ -n "$PUBLIC_IP" ]; then
+        WIREGUARD_ENDPOINT="${PUBLIC_IP}:51820"
+        echo "Auto-detected endpoint: $WIREGUARD_ENDPOINT"
+    else
+        WIREGUARD_ENDPOINT="localhost:51820"
+        echo "Warning: Could not detect public IP, using localhost:51820"
+        echo "Set WIREGUARD_ENDPOINT in admin panel or .env file"
+    fi
+fi
+
+export WIREGUARD_ENDPOINT
+
+# Сохраняем endpoint для API доступа
+echo "export WIREGUARD_ENDPOINT=\"$WIREGUARD_ENDPOINT\"" > "$CONFIG_FILE"
+chmod 600 "$CONFIG_FILE"
+
 # Загрузка модуля WireGuard
 if ! lsmod | grep -q wireguard; then
     echo "Loading WireGuard kernel module..."
