@@ -758,6 +758,34 @@ tr:hover td {
     color: var(--warning);
 }
 
+/* Settings editable */
+.settings-editable {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+    background: var(--interactive-normal);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.btn-small:hover {
+    background: var(--interactive-hover);
+    color: var(--text-normal);
+    border-color: var(--border-hover);
+}
+
+.text-warning {
+    color: var(--warning);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     header {

@@ -153,6 +153,7 @@ func (rt *Router) Setup() *chi.Mux {
 				r.Use(rt.authMW.RequireAdmin)
 				r.Get("/stats", rt.adminHandler.GetStats)
 				r.Get("/server-info", rt.adminHandler.GetServerInfo)
+				r.Put("/endpoint", rt.adminHandler.UpdateEndpoint)
 				r.Get("/users", rt.adminHandler.GetAllUsers)
 				r.Delete("/users/{id}", rt.adminHandler.DeleteUser)
 				r.Get("/peers", rt.adminHandler.GetAllPeers)
