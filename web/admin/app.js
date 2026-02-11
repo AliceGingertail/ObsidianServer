@@ -415,8 +415,18 @@ function deleteUser(id, email) {
 }
 
 // Peers
+function getUsernameById(userId) {
+    const user = usersCache.find(u => u.id === userId);
+    return user ? user.username : userId.substring(0, 8) + '...';
+}
+
 async function loadPeers() {
     try {
+        // Ensure users are loaded for name resolution
+        if (usersCache.length === 0) {
+            usersCache = await apiRequest('/admin/users') || [];
+        }
+
         const peers = await apiRequest('/admin/peers');
         const tbody = document.querySelector('#peers-table tbody');
         tbody.innerHTML = '';
@@ -433,7 +443,7 @@ async function loadPeers() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td title="${peer.id}">${peer.id.substring(0, 8)}...</td>
-                <td title="${peer.user_id}">${peer.user_id.substring(0, 8)}...</td>
+                <td title="${peer.user_id}">${escapeHtml(getUsernameById(peer.user_id))}</td>
                 <td>${escapeHtml(peer.device_name)}</td>
                 <td><span class="badge badge-info">${peer.protocol}</span></td>
                 <td>${escapeHtml(ipAddress)}</td>

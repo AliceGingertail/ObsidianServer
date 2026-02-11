@@ -20,6 +20,7 @@ func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 
 type registerRequest struct {
 	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -40,8 +41,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Валидация
-	if req.Username == "" || req.Password == "" {
-		respondError(w, http.StatusBadRequest, "Username and password are required")
+	if req.Username == "" || req.Email == "" || req.Password == "" {
+		respondError(w, http.StatusBadRequest, "Username, email and password are required")
 		return
 	}
 
@@ -57,6 +58,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.authService.Register(r.Context(), &services.RegisterRequest{
 		Username: req.Username,
+		Email:    req.Email,
 		Password: req.Password,
 	})
 

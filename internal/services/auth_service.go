@@ -32,6 +32,7 @@ func NewAuthService(
 
 type RegisterRequest struct {
 	Username string
+	Email    string
 	Password string
 }
 
@@ -61,6 +62,7 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 
 	// Создаем пользователя
 	user := models.NewUser(req.Username, passwordHash)
+	user.Email = req.Email
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
