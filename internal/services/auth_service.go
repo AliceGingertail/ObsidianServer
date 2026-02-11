@@ -32,7 +32,6 @@ func NewAuthService(
 
 type RegisterRequest struct {
 	Username string
-	Email    string
 	Password string
 }
 
@@ -48,8 +47,8 @@ type AuthResponse struct {
 }
 
 func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error) {
-	// Проверяем, существует ли пользователь с таким email
-	existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
+	// Проверяем, существует ли пользователь с таким username
+	existingUser, err := s.userRepo.GetByUsername(ctx, req.Username)
 	if err == nil && existingUser != nil {
 		return nil, domerrors.ErrUserExists
 	}
@@ -61,7 +60,7 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 	}
 
 	// Создаем пользователя
-	user := models.NewUser(req.Username, req.Email, passwordHash)
+	user := models.NewUser(req.Username, passwordHash)
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -145,7 +144,7 @@ func (s *AuthService) LogoutAll(ctx context.Context, userID uuid.UUID) error {
 
 func (s *AuthService) generateTokens(ctx context.Context, user *models.User, deviceInfo string) (*AuthResponse, error) {
 	// Генерируем access token
-	accessToken, err := s.jwtManager.GenerateAccessToken(user.ID, user.Email, user.IsAdmin)
+	accessToken, err := s.jwtManager.GenerateAccessToken(user.ID, user.Username, user.IsAdmin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}

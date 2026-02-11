@@ -158,6 +158,7 @@ func (rt *Router) Setup() *chi.Mux {
 				r.Delete("/users/{id}", rt.adminHandler.DeleteUser)
 				r.Get("/peers", rt.adminHandler.GetAllPeers)
 				r.Post("/peers", rt.adminHandler.CreatePeer)
+				r.Post("/peers/generate-config", rt.adminHandler.CreatePeerWithConfig)
 				r.Delete("/peers/{id}", rt.adminHandler.DeletePeer)
 			})
 		})

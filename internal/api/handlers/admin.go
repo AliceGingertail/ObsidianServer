@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/yourusername/ObsidianServer/internal/domain/models"
 	"github.com/yourusername/ObsidianServer/internal/services"
+	"github.com/yourusername/ObsidianServer/internal/vpn/wireguard"
 )
 
 type AdminHandler struct {
@@ -140,6 +141,7 @@ type adminCreatePeerRequest struct {
 	UserID     string          `json:"user_id"`
 	DeviceName string          `json:"device_name"`
 	Protocol   models.Protocol `json:"protocol"`
+	PublicKey  string          `json:"public_key"`
 }
 
 type updateEndpointRequest struct {
@@ -213,10 +215,16 @@ func (h *AdminHandler) CreatePeer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Protocol == models.ProtocolWireGuard && req.PublicKey == "" {
+		respondError(w, http.StatusBadRequest, "Public key is required for WireGuard")
+		return
+	}
+
 	peerWithConfig, err := h.peerService.CreatePeer(r.Context(), &services.CreatePeerRequest{
 		UserID:     userID,
 		DeviceName: req.DeviceName,
 		Protocol:   req.Protocol,
+		PublicKey:  req.PublicKey,
 	})
 
 	if err != nil {
@@ -225,4 +233,64 @@ func (h *AdminHandler) CreatePeer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusCreated, peerWithConfig)
+}
+
+type adminGenerateConfigRequest struct {
+	UserID     string `json:"user_id"`
+	DeviceName string `json:"device_name"`
+}
+
+type generateConfigResponse struct {
+	Peer   interface{} `json:"peer"`
+	Config string      `json:"config"`
+}
+
+// CreatePeerWithConfig generates WireGuard keys server-side and returns a complete config
+// that can be imported into any WireGuard client app.
+func (h *AdminHandler) CreatePeerWithConfig(w http.ResponseWriter, r *http.Request) {
+	var req adminGenerateConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	userID, err := uuid.Parse(req.UserID)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+
+	if req.DeviceName == "" {
+		respondError(w, http.StatusBadRequest, "Device name is required")
+		return
+	}
+
+	// Generate keypair server-side
+	privateKey, publicKey, err := wireguard.GenerateKeyPair()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to generate keys: "+err.Error())
+		return
+	}
+
+	// Create peer with the generated public key
+	peerWithConfig, err := h.peerService.CreatePeer(r.Context(), &services.CreatePeerRequest{
+		UserID:     userID,
+		DeviceName: req.DeviceName,
+		Protocol:   models.ProtocolWireGuard,
+		PublicKey:  publicKey,
+	})
+
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to create peer: "+err.Error())
+		return
+	}
+
+	// Replace placeholder with actual private key in config
+	config := peerWithConfig.Config
+	config = strings.Replace(config, "<ВСТАВЬТЕ_ВАШ_ПРИВАТНЫЙ_КЛЮЧ>", privateKey, 1)
+
+	respondJSON(w, http.StatusCreated, generateConfigResponse{
+		Peer:   peerWithConfig.Peer,
+		Config: config,
+	})
 }

@@ -22,8 +22,8 @@ func (s *UserService) GetByID(ctx context.Context, id uuid.UUID) (*models.User, 
 	return s.userRepo.GetByID(ctx, id)
 }
 
-func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	return s.userRepo.GetByEmail(ctx, email)
+func (s *UserService) GetByUsername(ctx context.Context, username string) (*models.User, error) {
+	return s.userRepo.GetByUsername(ctx, username)
 }
 
 func (s *UserService) Update(ctx context.Context, user *models.User) error {

@@ -39,7 +39,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
-		SELECT id, username, email, password, is_active, is_admin, created_at, updated_at
+		SELECT id, username, COALESCE(email, ''), password, is_active, is_admin, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -66,38 +66,9 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 	return user, nil
 }
 
-func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	query := `
-		SELECT id, username, email, password, is_active, is_admin, created_at, updated_at
-		FROM users
-		WHERE email = $1
-	`
-
-	user := &models.User{}
-	err := r.db.QueryRow(ctx, query, email).Scan(
-		&user.ID,
-		&user.Username,
-		&user.Email,
-		&user.Password,
-		&user.IsActive,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domerrors.ErrUserNotFound
-		}
-		return nil, err
-	}
-
-	return user, nil
-}
-
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*models.User, error) {
 	query := `
-		SELECT id, username, email, password, is_active, is_admin, created_at, updated_at
+		SELECT id, username, COALESCE(email, ''), password, is_active, is_admin, created_at, updated_at
 		FROM users
 		WHERE username = $1
 	`
@@ -127,7 +98,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*m
 func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	query := `
 		UPDATE users
-		SET username = $2, email = $3, password = $4, is_active = $5, is_admin = $6
+		SET username = $2, email = $3, password = $4, is_active = $5, is_admin = $6, updated_at = NOW()
 		WHERE id = $1
 	`
 
@@ -168,7 +139,7 @@ func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r *UserRepository) GetAll(ctx context.Context) ([]*models.User, error) {
 	query := `
-		SELECT id, username, email, password, is_active, is_admin, created_at, updated_at
+		SELECT id, username, COALESCE(email, ''), password, is_active, is_admin, created_at, updated_at
 		FROM users
 		ORDER BY created_at DESC
 	`

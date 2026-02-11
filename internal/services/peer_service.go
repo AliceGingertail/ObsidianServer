@@ -37,6 +37,7 @@ type CreatePeerRequest struct {
 	UserID     uuid.UUID
 	DeviceName string
 	Protocol   models.Protocol
+	PublicKey  string // Публичный ключ, сгенерированный клиентом
 }
 
 type PeerWithConfig struct {
@@ -61,12 +62,6 @@ func (s *PeerService) CreatePeer(ctx context.Context, req *CreatePeerRequest) (*
 		return nil, err
 	}
 
-	// Генерируем учетные данные
-	credentials, err := provider.GenerateCredentials(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate credentials: %w", err)
-	}
-
 	// Выделяем IP-адрес
 	ipAddress, err := s.allocateIPAddress(ctx, req.Protocol)
 	if err != nil {
@@ -79,13 +74,23 @@ func (s *PeerService) CreatePeer(ctx context.Context, req *CreatePeerRequest) (*
 	// Заполняем данные в зависимости от протокола
 	switch req.Protocol {
 	case models.ProtocolWireGuard:
-		peer.WGPublicKey = &credentials.PublicKey
-		peer.WGPrivateKey = &credentials.PrivateKey
-		peer.WGPreshared = &credentials.Preshared
+		// Публичный ключ приходит от клиента — приватный ключ остаётся у клиента
+		peer.WGPublicKey = &req.PublicKey
+		// Приватный ключ НЕ сохраняем — он остаётся только у клиента
+		peer.WGPrivateKey = nil
+		// Генерируем preshared key на сервере для дополнительной защиты
+		preshared, err := provider.GeneratePresharedKey(ctx)
+		if err == nil && preshared != "" {
+			peer.WGPreshared = &preshared
+		}
 		ipWithMask := postgres.FormatIPWithMask(ipAddress, s.subnet)
 		peer.WGIPAddress = &ipWithMask
 	case models.ProtocolOpenVPN:
 		// Будет реализовано позже
+		credentials, err := provider.GenerateCredentials(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate credentials: %w", err)
+		}
 		peer.OVPNCertificate = &credentials.Certificate
 		peer.OVPNIPAddress = &ipAddress
 	default:
@@ -104,7 +109,7 @@ func (s *PeerService) CreatePeer(ctx context.Context, req *CreatePeerRequest) (*
 		return nil, fmt.Errorf("failed to add peer to VPN: %w", err)
 	}
 
-	// Генерируем конфигурацию для клиента
+	// Генерируем частичную конфигурацию для клиента (без приватного ключа)
 	config, err := provider.GenerateClientConfig(ctx, peer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate client config: %w", err)

@@ -32,6 +32,7 @@ func NewPeerHandlerWithSplitTunnel(peerService *services.PeerService, splitTunne
 type createPeerRequest struct {
 	DeviceName string          `json:"device_name"`
 	Protocol   models.Protocol `json:"protocol"`
+	PublicKey  string          `json:"public_key"` // Клиент генерирует и отправляет публичный ключ
 }
 
 func (h *PeerHandler) CreatePeer(w http.ResponseWriter, r *http.Request) {
@@ -51,12 +52,19 @@ func (h *PeerHandler) CreatePeer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Для WireGuard публичный ключ обязателен
+	if req.Protocol == models.ProtocolWireGuard && req.PublicKey == "" {
+		respondError(w, http.StatusBadRequest, "Public key is required for WireGuard")
+		return
+	}
+
 	userID := GetUserIDFromContext(r.Context())
 
 	peerWithConfig, err := h.peerService.CreatePeer(r.Context(), &services.CreatePeerRequest{
 		UserID:     userID,
 		DeviceName: req.DeviceName,
 		Protocol:   req.Protocol,
+		PublicKey:  req.PublicKey,
 	})
 
 	if err != nil {

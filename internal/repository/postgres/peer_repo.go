@@ -360,8 +360,12 @@ func AllocateNextIP(subnet, lastIP string) (string, error) {
 		copy(nextIP, ipNet.IP)
 		nextIP[len(nextIP)-1] += 2
 	} else {
-		// Парсим последний IP и увеличиваем
-		lastIPParsed := net.ParseIP(lastIP)
+		// Парсим последний IP и увеличиваем (убираем маску, если есть)
+		ipStr := lastIP
+		if idx := strings.Index(ipStr, "/"); idx != -1 {
+			ipStr = ipStr[:idx]
+		}
+		lastIPParsed := net.ParseIP(ipStr)
 		if lastIPParsed == nil {
 			return "", fmt.Errorf("invalid last IP: %s", lastIP)
 		}

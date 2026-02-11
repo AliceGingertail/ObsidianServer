@@ -14,6 +14,9 @@ type Provider interface {
 	// GenerateCredentials генерирует ключи и конфигурацию для нового peer
 	GenerateCredentials(ctx context.Context) (*PeerCredentials, error)
 
+	// GeneratePresharedKey генерирует только preshared key
+	GeneratePresharedKey(ctx context.Context) (string, error)
+
 	// AddPeer добавляет peer в конфигурацию VPN сервера
 	AddPeer(ctx context.Context, peer *models.Peer) error
 

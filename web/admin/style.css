@@ -786,6 +786,29 @@ tr:hover td {
     color: var(--warning);
 }
 
+.security-note {
+    background: rgba(124, 58, 237, 0.1);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-s);
+    padding: 10px 12px;
+    margin: 12px 0;
+    font-size: 12px;
+    color: var(--text-normal);
+}
+
+.security-note strong {
+    color: var(--accent);
+}
+
+.security-note-success {
+    background: rgba(89, 168, 107, 0.1);
+    border-color: var(--success);
+}
+
+.security-note-success strong {
+    color: var(--success);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     header {

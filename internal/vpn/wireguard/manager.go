@@ -76,6 +76,10 @@ func (m *Manager) GenerateCredentials(ctx context.Context) (*vpn.PeerCredentials
 	}, nil
 }
 
+func (m *Manager) GeneratePresharedKey(ctx context.Context) (string, error) {
+	return GeneratePresharedKey()
+}
+
 func (m *Manager) AddPeer(ctx context.Context, peer *models.Peer) error {
 	if peer.WGPublicKey == nil || peer.WGIPAddress == nil {
 		return fmt.Errorf("peer missing WireGuard credentials")
@@ -136,8 +140,8 @@ func (m *Manager) GenerateClientConfig(ctx context.Context, peer *models.Peer) (
 }
 
 func (m *Manager) GenerateClientConfigWithAllowedIPs(ctx context.Context, peer *models.Peer, allowedIPs string) (string, error) {
-	if peer.WGPrivateKey == nil || peer.WGIPAddress == nil {
-		return "", fmt.Errorf("peer missing WireGuard credentials")
+	if peer.WGIPAddress == nil {
+		return "", fmt.Errorf("peer missing WireGuard IP address")
 	}
 
 	if allowedIPs == "" {
@@ -147,7 +151,14 @@ func (m *Manager) GenerateClientConfigWithAllowedIPs(ctx context.Context, peer *
 	var config strings.Builder
 
 	_, _ = config.WriteString("[Interface]\n")
-	_, _ = config.WriteString(fmt.Sprintf("PrivateKey = %s\n", *peer.WGPrivateKey))
+
+	// Если приватный ключ есть — вставляем, иначе placeholder
+	if peer.WGPrivateKey != nil && *peer.WGPrivateKey != "" {
+		_, _ = config.WriteString(fmt.Sprintf("PrivateKey = %s\n", *peer.WGPrivateKey))
+	} else {
+		_, _ = config.WriteString("PrivateKey = <ВСТАВЬТЕ_ВАШ_ПРИВАТНЫЙ_КЛЮЧ>\n")
+	}
+
 	_, _ = config.WriteString(fmt.Sprintf("Address = %s\n", *peer.WGIPAddress))
 	if m.config.DNS != "" {
 		_, _ = config.WriteString(fmt.Sprintf("DNS = %s\n", m.config.DNS))

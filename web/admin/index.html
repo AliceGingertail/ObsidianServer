@@ -245,7 +245,6 @@ MAX_PEERS_PER_USER=5
             <h3>Создание нового пира</h3>
             <p class="modal-description">
                 Пир — это VPN-подключение для устройства пользователя.
-                После создания будет сгенерирован конфигурационный файл.
             </p>
             <form id="add-peer-form">
                 <div class="form-group">
@@ -258,16 +257,13 @@ MAX_PEERS_PER_USER=5
                     <label for="peer-device">Название устройства *</label>
                     <input type="text" id="peer-device" placeholder="Например: iPhone, Ноутбук, Рабочий ПК" required>
                 </div>
-                <div class="form-group">
-                    <label for="peer-protocol">Протокол *</label>
-                    <select id="peer-protocol" required>
-                        <option value="wireguard">WireGuard (рекомендуется)</option>
-                        <option value="openvpn">OpenVPN</option>
-                    </select>
+                <div class="security-note security-note-success">
+                    <strong>WireGuard конфиг:</strong> Ключи генерируются на сервере.
+                    Готовый конфиг можно импортировать в любое WireGuard-приложение.
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="add-peer-cancel">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Создать пир</button>
+                    <button type="submit" class="btn btn-primary">Создать и получить конфиг</button>
                 </div>
             </form>
         </div>
@@ -276,14 +272,18 @@ MAX_PEERS_PER_USER=5
     <!-- Config Modal -->
     <div id="config-modal" class="modal hidden">
         <div class="modal-content modal-wide">
-            <h3>Конфигурация пира создана</h3>
+            <h3>Конфигурация WireGuard</h3>
             <p class="modal-description">
-                Скопируйте эту конфигурацию и сохраните её в файл на устройстве клиента.
-                Для WireGuard сохраните как <code>wg0.conf</code>.
+                Скопируйте конфиг или скачайте файл. Импортируйте в WireGuard-приложение на устройстве.
             </p>
+            <div class="security-note">
+                <strong>Важно:</strong> Конфиг содержит приватный ключ.
+                Передавайте его только по защищённому каналу.
+            </div>
             <pre id="config-content"></pre>
             <div class="modal-actions">
                 <button class="btn btn-secondary" id="config-copy">Копировать</button>
+                <button class="btn btn-secondary" id="config-download">Скачать .conf</button>
                 <button class="btn btn-primary" id="config-close">Закрыть</button>
             </div>
         </div>
