@@ -28,10 +28,10 @@ func (r *PeerRepository) Create(ctx context.Context, peer *models.Peer) error {
 			id, user_id, device_name, protocol,
 			wg_public_key, wg_private_key, wg_preshared, wg_ip_address,
 			ovpn_certificate, ovpn_private_key, ovpn_ip_address,
-			split_tunnel_mode,
+			split_tunnel_mode, server_generated,
 			is_active, last_seen, created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 	`
 	_, err := r.db.Exec(ctx, query,
 		peer.ID,
@@ -46,6 +46,7 @@ func (r *PeerRepository) Create(ctx context.Context, peer *models.Peer) error {
 		peer.OVPNPrivateKey,
 		peer.OVPNIPAddress,
 		peer.SplitTunnelMode,
+		peer.ServerGenerated,
 		peer.IsActive,
 		peer.LastSeen,
 		peer.CreatedAt,
@@ -59,7 +60,7 @@ func (r *PeerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Pee
 		SELECT id, user_id, device_name, protocol,
 			wg_public_key, wg_private_key, wg_preshared, wg_ip_address,
 			ovpn_certificate, ovpn_private_key, ovpn_ip_address,
-			split_tunnel_mode,
+			split_tunnel_mode, server_generated,
 			is_active, last_seen, created_at, updated_at
 		FROM peers
 		WHERE id = $1
@@ -79,6 +80,7 @@ func (r *PeerRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Pee
 		&peer.OVPNPrivateKey,
 		&peer.OVPNIPAddress,
 		&peer.SplitTunnelMode,
+		&peer.ServerGenerated,
 		&peer.IsActive,
 		&peer.LastSeen,
 		&peer.CreatedAt,
@@ -100,7 +102,7 @@ func (r *PeerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*
 		SELECT id, user_id, device_name, protocol,
 			wg_public_key, wg_private_key, wg_preshared, wg_ip_address,
 			ovpn_certificate, ovpn_private_key, ovpn_ip_address,
-			split_tunnel_mode,
+			split_tunnel_mode, server_generated,
 			is_active, last_seen, created_at, updated_at
 		FROM peers
 		WHERE user_id = $1
@@ -129,6 +131,7 @@ func (r *PeerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*
 			&peer.OVPNPrivateKey,
 			&peer.OVPNIPAddress,
 			&peer.SplitTunnelMode,
+			&peer.ServerGenerated,
 			&peer.IsActive,
 			&peer.LastSeen,
 			&peer.CreatedAt,
@@ -148,7 +151,7 @@ func (r *PeerRepository) GetByPublicKey(ctx context.Context, publicKey string) (
 		SELECT id, user_id, device_name, protocol,
 			wg_public_key, wg_private_key, wg_preshared, wg_ip_address,
 			ovpn_certificate, ovpn_private_key, ovpn_ip_address,
-			split_tunnel_mode,
+			split_tunnel_mode, server_generated,
 			is_active, last_seen, created_at, updated_at
 		FROM peers
 		WHERE wg_public_key = $1
@@ -168,6 +171,7 @@ func (r *PeerRepository) GetByPublicKey(ctx context.Context, publicKey string) (
 		&peer.OVPNPrivateKey,
 		&peer.OVPNIPAddress,
 		&peer.SplitTunnelMode,
+		&peer.ServerGenerated,
 		&peer.IsActive,
 		&peer.LastSeen,
 		&peer.CreatedAt,
@@ -198,8 +202,8 @@ func (r *PeerRepository) Update(ctx context.Context, peer *models.Peer) error {
 		SET device_name = $2, protocol = $3,
 			wg_public_key = $4, wg_private_key = $5, wg_preshared = $6, wg_ip_address = $7,
 			ovpn_certificate = $8, ovpn_private_key = $9, ovpn_ip_address = $10,
-			split_tunnel_mode = $11,
-			is_active = $12, last_seen = $13
+			split_tunnel_mode = $11, server_generated = $12,
+			is_active = $13, last_seen = $14
 		WHERE id = $1
 	`
 
@@ -215,6 +219,7 @@ func (r *PeerRepository) Update(ctx context.Context, peer *models.Peer) error {
 		peer.OVPNPrivateKey,
 		peer.OVPNIPAddress,
 		peer.SplitTunnelMode,
+		peer.ServerGenerated,
 		peer.IsActive,
 		peer.LastSeen,
 	)
@@ -288,7 +293,7 @@ func (r *PeerRepository) GetAll(ctx context.Context) ([]*models.Peer, error) {
 		SELECT id, user_id, device_name, protocol,
 			wg_public_key, wg_private_key, wg_preshared, wg_ip_address,
 			ovpn_certificate, ovpn_private_key, ovpn_ip_address,
-			split_tunnel_mode,
+			split_tunnel_mode, server_generated,
 			is_active, last_seen, created_at, updated_at
 		FROM peers
 		ORDER BY created_at DESC
@@ -316,6 +321,7 @@ func (r *PeerRepository) GetAll(ctx context.Context) ([]*models.Peer, error) {
 			&peer.OVPNPrivateKey,
 			&peer.OVPNIPAddress,
 			&peer.SplitTunnelMode,
+			&peer.ServerGenerated,
 			&peer.IsActive,
 			&peer.LastSeen,
 			&peer.CreatedAt,

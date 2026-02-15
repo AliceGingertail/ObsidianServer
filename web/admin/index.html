@@ -274,13 +274,23 @@ MAX_PEERS_PER_USER=5
         <div class="modal-content modal-wide">
             <h3>Конфигурация WireGuard</h3>
             <p class="modal-description">
-                Скопируйте конфиг или скачайте файл. Импортируйте в WireGuard-приложение на устройстве.
+                Скопируйте конфиг, скачайте файл или отсканируйте QR-код в WireGuard-приложении на устройстве.
             </p>
             <div class="security-note">
                 <strong>Важно:</strong> Конфиг содержит приватный ключ.
                 Передавайте его только по защищённому каналу.
             </div>
-            <pre id="config-content"></pre>
+            <div class="config-tabs">
+                <button class="config-tab active" data-tab="text">Конфиг</button>
+                <button class="config-tab" data-tab="qr">QR-код</button>
+            </div>
+            <div id="config-tab-text" class="config-tab-content">
+                <pre id="config-content"></pre>
+            </div>
+            <div id="config-tab-qr" class="config-tab-content hidden">
+                <div id="config-qr" class="config-qr-container"></div>
+                <p class="config-qr-hint">Откройте WireGuard на телефоне → «+» → «Сканировать QR-код»</p>
+            </div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" id="config-copy">Копировать</button>
                 <button class="btn btn-secondary" id="config-download">Скачать .conf</button>
@@ -368,6 +378,7 @@ MAX_PEERS_PER_USER=5
         </div>
     </div>
 
+    <script src="qrcode.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

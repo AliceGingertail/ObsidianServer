@@ -12,12 +12,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/yourusername/ObsidianServer/internal/domain/models"
 	"github.com/yourusername/ObsidianServer/internal/services"
+	"github.com/yourusername/ObsidianServer/internal/vpn"
 	"github.com/yourusername/ObsidianServer/internal/vpn/wireguard"
 )
 
 type AdminHandler struct {
 	userService *services.UserService
 	peerService *services.PeerService
+	vpnRegistry *vpn.Registry
 	serverInfo  *ServerInfoResponse
 }
 
@@ -37,10 +39,11 @@ func NewAdminHandler(userService *services.UserService, peerService *services.Pe
 	}
 }
 
-func NewAdminHandlerWithConfig(userService *services.UserService, peerService *services.PeerService, serverInfo *ServerInfoResponse) *AdminHandler {
+func NewAdminHandlerWithConfig(userService *services.UserService, peerService *services.PeerService, vpnRegistry *vpn.Registry, serverInfo *ServerInfoResponse) *AdminHandler {
 	return &AdminHandler{
 		userService: userService,
 		peerService: peerService,
+		vpnRegistry: vpnRegistry,
 		serverInfo:  serverInfo,
 	}
 }
@@ -137,6 +140,25 @@ func (h *AdminHandler) DeletePeer(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *AdminHandler) GetPeerConfig(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	peerID, err := uuid.Parse(idStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid peer ID")
+		return
+	}
+
+	config, err := h.peerService.GetPeerConfigAdmin(r.Context(), peerID)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "Failed to get peer config")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(config))
+}
+
 type adminCreatePeerRequest struct {
 	UserID     string          `json:"user_id"`
 	DeviceName string          `json:"device_name"`
@@ -184,6 +206,15 @@ func (h *AdminHandler) UpdateEndpoint(w http.ResponseWriter, r *http.Request) {
 	// Обновляем serverInfo если он есть
 	if h.serverInfo != nil {
 		h.serverInfo.WireGuardEndpoint = endpoint
+	}
+
+	// Обновляем endpoint в WireGuard Manager для генерации конфигов
+	if h.vpnRegistry != nil {
+		if provider, err := h.vpnRegistry.Get(models.ProtocolWireGuard); err == nil {
+			if wgManager, ok := provider.(*wireguard.Manager); ok {
+				wgManager.UpdateEndpoint(endpoint)
+			}
+		}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]string{
@@ -272,12 +303,14 @@ func (h *AdminHandler) CreatePeerWithConfig(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Create peer with the generated public key
+	// Create peer with the generated keys (private key stored in DB for server-generated peers)
 	peerWithConfig, err := h.peerService.CreatePeer(r.Context(), &services.CreatePeerRequest{
-		UserID:     userID,
-		DeviceName: req.DeviceName,
-		Protocol:   models.ProtocolWireGuard,
-		PublicKey:  publicKey,
+		UserID:          userID,
+		DeviceName:      req.DeviceName,
+		Protocol:        models.ProtocolWireGuard,
+		PublicKey:       publicKey,
+		PrivateKey:      privateKey,
+		ServerGenerated: true,
 	})
 
 	if err != nil {
@@ -285,12 +318,8 @@ func (h *AdminHandler) CreatePeerWithConfig(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Replace placeholder with actual private key in config
-	config := peerWithConfig.Config
-	config = strings.Replace(config, "<ВСТАВЬТЕ_ВАШ_ПРИВАТНЫЙ_КЛЮЧ>", privateKey, 1)
-
 	respondJSON(w, http.StatusCreated, generateConfigResponse{
 		Peer:   peerWithConfig.Peer,
-		Config: config,
+		Config: peerWithConfig.Config,
 	})
 }

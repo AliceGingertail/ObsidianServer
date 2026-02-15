@@ -76,9 +76,12 @@ func GenerateKeyPair() (privateKey, publicKey string, err error) {
 	return privateKey, publicKey, nil
 }
 
-// GetServerPublicKey получает публичный ключ сервера из wg0
-func GetServerPublicKey() (string, error) {
-	cmd := exec.Command("wg", "show", "wg0", "public-key")
+// GetServerPublicKey получает публичный ключ сервера из указанного интерфейса
+func GetServerPublicKey(iface string) (string, error) {
+	if iface == "" {
+		iface = "wg1"
+	}
+	cmd := exec.Command("wg", "show", iface, "public-key")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 

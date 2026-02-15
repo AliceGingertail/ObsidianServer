@@ -27,6 +27,8 @@ type Peer struct {
 	// Split tunneling
 	SplitTunnelMode SplitTunnelMode `json:"split_tunnel_mode"`
 
+	ServerGenerated bool `json:"server_generated"`
+
 	IsActive  bool       `json:"is_active"`
 	LastSeen  *time.Time `json:"last_seen,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`

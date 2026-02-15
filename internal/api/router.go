@@ -9,6 +9,7 @@ import (
 	"github.com/yourusername/ObsidianServer/internal/api/handlers"
 	"github.com/yourusername/ObsidianServer/internal/api/middleware"
 	"github.com/yourusername/ObsidianServer/internal/services"
+	"github.com/yourusername/ObsidianServer/internal/vpn"
 	"github.com/yourusername/ObsidianServer/pkg/jwt"
 )
 
@@ -20,14 +21,18 @@ type Router struct {
 	adminHandler       *handlers.AdminHandler
 	splitTunnelHandler *handlers.SplitTunnelHandler
 	authMW             *middleware.AuthMiddleware
+	serverCfg          *ServerConfig
 }
 
 type ServerConfig struct {
-	WireGuardEnabled  bool
-	WireGuardEndpoint string
-	WireGuardPort     int
-	WireGuardSubnet   string
-	MaxPeersPerUser   int
+	WireGuardEnabled    bool
+	WireGuardEndpoint   string
+	WireGuardPort       int
+	WireGuardSubnet     string
+	MaxPeersPerUser     int
+	CORSOrigins         string
+	RegistrationEnabled bool
+	AdminWebRoot        string
 }
 
 func NewRouter(
@@ -57,6 +62,7 @@ func NewRouterWithConfig(
 	splitTunnelService *services.SplitTunnelService,
 	jwtManager *jwt.Manager,
 	serverCfg *ServerConfig,
+	vpnRegistry *vpn.Registry,
 ) *Router {
 	serverInfo := &handlers.ServerInfoResponse{
 		WireGuardEnabled:  serverCfg.WireGuardEnabled,
@@ -72,23 +78,35 @@ func NewRouterWithConfig(
 		userHandler:        handlers.NewUserHandler(userService),
 		peerHandler:        handlers.NewPeerHandlerWithSplitTunnel(peerService, splitTunnelService),
 		vpnHandler:         handlers.NewVPNHandler(vpnService),
-		adminHandler:       handlers.NewAdminHandlerWithConfig(userService, peerService, serverInfo),
+		adminHandler:       handlers.NewAdminHandlerWithConfig(userService, peerService, vpnRegistry, serverInfo),
 		splitTunnelHandler: handlers.NewSplitTunnelHandler(splitTunnelService, peerService),
 		authMW:             middleware.NewAuthMiddleware(jwtManager),
+		serverCfg:          serverCfg,
 	}
 }
 
 func (rt *Router) Setup() *chi.Mux {
 	r := chi.NewRouter()
 
+	// CORS origins
+	corsOrigins := []string{"*"}
+	allowCredentials := false
+	if rt.serverCfg != nil && rt.serverCfg.CORSOrigins != "" && rt.serverCfg.CORSOrigins != "*" {
+		corsOrigins = strings.Split(rt.serverCfg.CORSOrigins, ",")
+		for i := range corsOrigins {
+			corsOrigins[i] = strings.TrimSpace(corsOrigins[i])
+		}
+		allowCredentials = true
+	}
+
 	// Middleware
 	r.Use(middleware.Logger)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   corsOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
+		AllowCredentials: allowCredentials,
 		MaxAge:           300,
 	}))
 
@@ -102,7 +120,15 @@ func (rt *Router) Setup() *chi.Mux {
 	r.Route("/api", func(r chi.Router) {
 		// Public auth routes
 		r.Route("/auth", func(r chi.Router) {
-			r.Post("/register", rt.authHandler.Register)
+			if rt.serverCfg != nil && !rt.serverCfg.RegistrationEnabled {
+				r.Post("/register", func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"error":"Registration is disabled"}`))
+				})
+			} else {
+				r.Post("/register", rt.authHandler.Register)
+			}
 			r.Post("/login", rt.authHandler.Login)
 			r.Post("/refresh", rt.authHandler.Refresh)
 
@@ -159,13 +185,18 @@ func (rt *Router) Setup() *chi.Mux {
 				r.Get("/peers", rt.adminHandler.GetAllPeers)
 				r.Post("/peers", rt.adminHandler.CreatePeer)
 				r.Post("/peers/generate-config", rt.adminHandler.CreatePeerWithConfig)
+				r.Get("/peers/{id}/config", rt.adminHandler.GetPeerConfig)
 				r.Delete("/peers/{id}", rt.adminHandler.DeletePeer)
 			})
 		})
 	})
 
 	// Admin panel static files
-	fileServer := http.FileServer(http.Dir("web/admin"))
+	adminRoot := "web/admin"
+	if rt.serverCfg != nil && rt.serverCfg.AdminWebRoot != "" {
+		adminRoot = rt.serverCfg.AdminWebRoot
+	}
+	fileServer := http.FileServer(http.Dir(adminRoot))
 	r.Handle("/admin", http.RedirectHandler("/admin/", http.StatusMovedPermanently))
 	r.Handle("/admin/*", http.StripPrefix("/admin", fileServerWithIndex(fileServer)))
 

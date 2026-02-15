@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/yourusername/ObsidianServer/internal/api"
 	"github.com/yourusername/ObsidianServer/internal/config"
+	"github.com/yourusername/ObsidianServer/internal/repository/migrations"
 	"github.com/yourusername/ObsidianServer/internal/repository/postgres"
 	"github.com/yourusername/ObsidianServer/internal/services"
 	"github.com/yourusername/ObsidianServer/internal/vpn"
@@ -46,6 +47,11 @@ func main() {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 
+	// Запускаем миграции
+	if err := migrations.Run(ctx, dbPool); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
 	// Инициализируем репозитории
 	userRepo := postgres.NewUserRepository(dbPool)
 	peerRepo := postgres.NewPeerRepository(dbPool)
@@ -68,8 +74,8 @@ func main() {
 		wgManager, err := wireguard.NewManager(&wireguard.Config{
 			Endpoint:   cfg.VPN.WireGuardEndpoint,
 			Subnet:     cfg.VPN.WireGuardSubnet,
-			Interface:  "wg0",
-			DNS:        "1.1.1.1, 8.8.8.8",
+			Interface:  cfg.VPN.WireGuardInterface,
+			DNS:        cfg.VPN.WireGuardDNS,
 			AllowedIPs: "0.0.0.0/0, ::/0",
 		})
 
@@ -97,13 +103,16 @@ func main() {
 
 	// Создаем роутер с конфигурацией сервера
 	serverCfg := &api.ServerConfig{
-		WireGuardEnabled:  cfg.VPN.WireGuardEnabled,
-		WireGuardEndpoint: cfg.VPN.WireGuardEndpoint,
-		WireGuardPort:     cfg.VPN.WireGuardPort,
-		WireGuardSubnet:   cfg.VPN.WireGuardSubnet,
-		MaxPeersPerUser:   cfg.VPN.MaxPeersPerUser,
+		WireGuardEnabled:    cfg.VPN.WireGuardEnabled,
+		WireGuardEndpoint:   cfg.VPN.WireGuardEndpoint,
+		WireGuardPort:       cfg.VPN.WireGuardPort,
+		WireGuardSubnet:     cfg.VPN.WireGuardSubnet,
+		MaxPeersPerUser:     cfg.VPN.MaxPeersPerUser,
+		CORSOrigins:         cfg.Server.CORSOrigins,
+		RegistrationEnabled: cfg.Server.RegistrationEnabled,
+		AdminWebRoot:        cfg.Server.AdminWebRoot,
 	}
-	router := api.NewRouterWithConfig(authService, userService, peerService, vpnService, splitTunnelService, jwtManager, serverCfg)
+	router := api.NewRouterWithConfig(authService, userService, peerService, vpnService, splitTunnelService, jwtManager, serverCfg, vpnRegistry)
 	handler := router.Setup()
 
 	// Настраиваем HTTP сервер

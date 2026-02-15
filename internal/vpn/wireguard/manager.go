@@ -25,7 +25,7 @@ type Manager struct {
 
 func NewManager(config *Config) (*Manager, error) {
 	if config.Interface == "" {
-		config.Interface = "wg0"
+		config.Interface = "wg1"
 	}
 	if config.AllowedIPs == "" {
 		config.AllowedIPs = "0.0.0.0/0, ::/0"
@@ -39,7 +39,7 @@ func NewManager(config *Config) (*Manager, error) {
 	}
 
 	// Получаем публичный ключ сервера
-	pubKey, err := GetServerPublicKey()
+	pubKey, err := GetServerPublicKey(config.Interface)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get server public key: %w", err)
 	}
@@ -85,11 +85,14 @@ func (m *Manager) AddPeer(ctx context.Context, peer *models.Peer) error {
 		return fmt.Errorf("peer missing WireGuard credentials")
 	}
 
+	// allowed-ips на сервере должен быть /32 (конкретный IP клиента)
+	peerIP := peer.GetIPWithoutMask() + "/32"
+
 	// Формируем команду wg set
 	args := []string{
 		"set", m.config.Interface,
 		"peer", *peer.WGPublicKey,
-		"allowed-ips", *peer.WGIPAddress,
+		"allowed-ips", peerIP,
 	}
 
 	if peer.WGPreshared != nil && *peer.WGPreshared != "" {
@@ -160,6 +163,7 @@ func (m *Manager) GenerateClientConfigWithAllowedIPs(ctx context.Context, peer *
 	}
 
 	_, _ = config.WriteString(fmt.Sprintf("Address = %s\n", *peer.WGIPAddress))
+	_, _ = config.WriteString("MTU = 1420\n")
 	if m.config.DNS != "" {
 		_, _ = config.WriteString(fmt.Sprintf("DNS = %s\n", m.config.DNS))
 	}
@@ -177,6 +181,10 @@ func (m *Manager) GenerateClientConfigWithAllowedIPs(ctx context.Context, peer *
 	_, _ = config.WriteString("PersistentKeepalive = 25\n")
 
 	return config.String(), nil
+}
+
+func (m *Manager) UpdateEndpoint(endpoint string) {
+	m.config.Endpoint = endpoint
 }
 
 func (m *Manager) GetServerInfo(ctx context.Context) (map[string]string, error) {

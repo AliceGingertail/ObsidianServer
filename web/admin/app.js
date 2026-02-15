@@ -126,6 +126,9 @@ const configContent = document.getElementById('config-content');
 const configCopy = document.getElementById('config-copy');
 const configDownload = document.getElementById('config-download');
 const configClose = document.getElementById('config-close');
+const configTabs = document.querySelectorAll('.config-tab');
+const configTabText = document.getElementById('config-tab-text');
+const configTabQr = document.getElementById('config-tab-qr');
 
 // Split Tunnel Modal
 const splitTunnelModal = document.getElementById('split-tunnel-modal');
@@ -211,8 +214,33 @@ function setupEventListeners() {
     configClose.addEventListener('click', () => {
         configModal.classList.add('hidden');
         currentConfigDeviceName = '';
+        // Reset to text tab
+        configTabs.forEach(t => t.classList.remove('active'));
+        configTabs[0].classList.add('active');
+        configTabText.classList.remove('hidden');
+        configTabQr.classList.add('hidden');
+        // Cleanup QR
+        document.getElementById('config-qr').innerHTML = '';
         loadPeers();
         loadStats();
+    });
+
+    // Config tab switching
+    configTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            configTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            const tabName = tab.dataset.tab;
+            if (tabName === 'text') {
+                configTabText.classList.remove('hidden');
+                configTabQr.classList.add('hidden');
+            } else if (tabName === 'qr') {
+                configTabText.classList.add('hidden');
+                configTabQr.classList.remove('hidden');
+                generateConfigQr();
+            }
+        });
     });
 
     // Split tunnel modal
@@ -453,6 +481,7 @@ async function loadPeers() {
                 </td>
                 <td><span class="badge ${peer.is_active ? 'badge-success' : 'badge-danger'}">${peer.is_active ? 'Да' : 'Нет'}</span></td>
                 <td>
+                    ${peer.server_generated ? `<button class="btn btn-secondary btn-sm" onclick="showPeerConfig('${peer.id}', '${escapeHtml(peer.device_name)}')">Конфиг</button>` : ''}
                     <button class="btn btn-danger btn-sm" onclick="deletePeer('${peer.id}', '${escapeHtml(peer.device_name)}')">Удалить</button>
                 </td>
             `;
@@ -478,6 +507,22 @@ function getSplitModeBadgeClass(mode) {
         case 'include': return 'badge-info';
         case 'exclude': return 'badge-warning';
         default: return '';
+    }
+}
+
+async function showPeerConfig(peerId, deviceName) {
+    try {
+        const response = await fetch(`${API_BASE}/admin/peers/${peerId}/config`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error('Failed to load config');
+        const config = await response.text();
+
+        currentConfigDeviceName = deviceName;
+        configContent.textContent = config;
+        configModal.classList.remove('hidden');
+    } catch (err) {
+        alert('Ошибка загрузки конфига: ' + err.message);
     }
 }
 
@@ -513,6 +558,27 @@ async function openAddPeerModal() {
     } catch (err) {
         alert('Ошибка загрузки пользователей: ' + err.message);
     }
+}
+
+function generateConfigQr() {
+    const config = configContent.textContent;
+    if (!config) return;
+
+    // Replace the container entirely to avoid any stale state
+    const oldContainer = document.getElementById('config-qr');
+    const newContainer = document.createElement('div');
+    newContainer.id = 'config-qr';
+    newContainer.className = 'config-qr-container';
+    oldContainer.parentNode.replaceChild(newContainer, oldContainer);
+
+    new QRCode(newContainer, {
+        text: config,
+        width: 260,
+        height: 260,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.L,
+    });
 }
 
 async function handleCreatePeer(e) {

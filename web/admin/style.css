@@ -588,6 +588,66 @@ tr:hover td {
     color: var(--accent);
 }
 
+/* Config tabs */
+.config-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    background: var(--bg-primary);
+    border-radius: var(--radius-s);
+    padding: 4px;
+    border: 1px solid var(--border);
+}
+
+.config-tab {
+    flex: 1;
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: var(--radius-xs, 4px);
+    transition: all 0.2s;
+}
+
+.config-tab:hover {
+    color: var(--text-normal);
+}
+
+.config-tab.active {
+    background: var(--accent);
+    color: #fff;
+}
+
+.config-tab-content.hidden {
+    display: none;
+}
+
+.config-qr-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: var(--radius-s);
+    min-height: 280px;
+}
+
+.config-qr-container canvas,
+.config-qr-container img {
+    max-width: 100%;
+    height: auto;
+}
+
+.config-qr-hint {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-top: 12px;
+}
+
 /* Split Tunnel Modal */
 .split-tunnel-modes {
     display: flex;

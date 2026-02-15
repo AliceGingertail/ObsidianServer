@@ -31,32 +31,35 @@ EOF
 fi
 
 # Загрузка/установка WIREGUARD_ENDPOINT
-CONFIG_FILE="/etc/wireguard/.server_config"
+if [ -n "$WIREGUARD_ENDPOINT" ]; then
+    echo "Using provided endpoint: $WIREGUARD_ENDPOINT"
+else
+    # Определяем IP напрямую с физического интерфейса.
+    # curl ipify.org ненадёжен: если на хосте есть VPN (wg0), трафик пойдёт
+    # через него и вернёт чужой exit IP.
+    #
+    # На VPS — это публичный IP (eth0/ens3).
+    # Локально — LAN IP (wlan0), что корректно для тестирования.
+    # Для VPS за cloud NAT — задайте WIREGUARD_ENDPOINT вручную.
+    DEFAULT_ROUTE_IF=$(ip -4 route show default | grep -oP 'dev \K\S+' | head -1)
+    PUBLIC_IP=$(ip -4 addr show "$DEFAULT_ROUTE_IF" 2>/dev/null | grep -oP 'inet \K[^/]+' | head -1)
 
-if [ -f "$CONFIG_FILE" ]; then
-    echo "Loading saved server config..."
-    source "$CONFIG_FILE"
-fi
-
-if [ -z "$WIREGUARD_ENDPOINT" ]; then
-    # Пробуем определить публичный IP автоматически
-    PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || curl -s --max-time 5 ip.me 2>/dev/null || echo "")
-
-    if [ -n "$PUBLIC_IP" ]; then
-        WIREGUARD_ENDPOINT="${PUBLIC_IP}:51820"
-        echo "Auto-detected endpoint: $WIREGUARD_ENDPOINT"
+    WG_PORT="${WIREGUARD_PORT:-51821}"
+    if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "127.0.0.1" ]; then
+        WIREGUARD_ENDPOINT="${PUBLIC_IP}:${WG_PORT}"
+        echo "Auto-detected endpoint: $WIREGUARD_ENDPOINT (from $DEFAULT_ROUTE_IF)"
     else
-        WIREGUARD_ENDPOINT="localhost:51820"
-        echo "Warning: Could not detect public IP, using localhost:51820"
-        echo "Set WIREGUARD_ENDPOINT in admin panel or .env file"
+        WIREGUARD_ENDPOINT="localhost:${WG_PORT}"
+        echo "ERROR: Could not detect IP from default interface!"
+        echo "Set WIREGUARD_ENDPOINT in .env file"
     fi
 fi
 
 export WIREGUARD_ENDPOINT
 
-# Сохраняем endpoint для API доступа
-echo "export WIREGUARD_ENDPOINT=\"$WIREGUARD_ENDPOINT\"" > "$CONFIG_FILE"
-chmod 600 "$CONFIG_FILE"
+# Включаем IP forwarding (с host network sysctls не работают в compose)
+sysctl -w net.ipv4.ip_forward=1
+sysctl -w net.ipv6.conf.all.forwarding=1
 
 # Загрузка модуля WireGuard
 if ! lsmod | grep -q wireguard; then
@@ -70,11 +73,69 @@ if [ "$WIREGUARD_ENABLED" = "true" ]; then
     /app/setup-wg.sh
 fi
 
-# Настройка iptables для NAT
+# Определяем сетевой интерфейс для NAT (не hardcode eth0)
+DEFAULT_IF=$(ip -4 route show default | grep -oP 'dev \K\S+' | head -1)
+if [ -z "$DEFAULT_IF" ]; then
+    DEFAULT_IF="eth0"
+    echo "Warning: Could not detect default interface, using eth0"
+fi
+echo "Using network interface: $DEFAULT_IF"
+
+WG_SUBNET="${WIREGUARD_SUBNET:-10.13.13.0/24}"
+WG_IF="${WIREGUARD_INTERFACE:-wg1}"
+
+# ─── Policy routing ────────────────────────────────────────────────────────
+# Если на хосте есть другой VPN (wg0 с AllowedIPs=0.0.0.0/0), его маршруты
+# перехватывают ВЕСЬ трафик, включая пересылаемый с wg1. Без policy routing
+# пакеты клиентов уходят в чужой VPN вместо физического интерфейса.
+#
+# Решение: отдельная таблица маршрутов с физическим default route.
+# Пакеты, приходящие на wg1, маркируются fwmark и маршрутизируются через неё.
+# ───────────────────────────────────────────────────────────────────────────
+WG_TABLE=51821
+DEFAULT_GW=$(ip -4 route show default | awk '{print $3}' | head -1)
+
+echo "Setting up policy routing for VPN forwarding..."
+echo "  default gateway: $DEFAULT_GW via $DEFAULT_IF (table $WG_TABLE)"
+
+# Таблица маршрутов: физический default route (в обход любых VPN на хосте)
+ip route replace default via "$DEFAULT_GW" dev "$DEFAULT_IF" table $WG_TABLE 2>/dev/null || true
+
+# Маркируем входящий трафик на VPN интерфейсе
+iptables -t mangle -C PREROUTING -i "$WG_IF" -j MARK --set-mark $WG_TABLE 2>/dev/null \
+    || iptables -t mangle -A PREROUTING -i "$WG_IF" -j MARK --set-mark $WG_TABLE
+
+# Маршрутизируем маркированный трафик через нашу таблицу
+ip rule add fwmark $WG_TABLE lookup $WG_TABLE priority 100 2>/dev/null || true
+
+# ─── iptables для NAT (идемпотентно) ──────────────────────────────────────
 echo "Configuring iptables..."
-iptables -t nat -A POSTROUTING -s ${WIREGUARD_SUBNET:-10.13.13.0/24} -o eth0 -j MASQUERADE
-iptables -A FORWARD -i wg0 -j ACCEPT
-iptables -A FORWARD -o wg0 -j ACCEPT
+
+# NAT: MASQUERADE для VPN-трафика, выходящего в интернет
+iptables -t nat -C POSTROUTING -s "$WG_SUBNET" -o "$DEFAULT_IF" -j MASQUERADE 2>/dev/null \
+    || iptables -t nat -I POSTROUTING -s "$WG_SUBNET" -o "$DEFAULT_IF" -j MASQUERADE
+
+# FORWARD: правила в основной цепочке
+iptables -C FORWARD -i "$WG_IF" -j ACCEPT 2>/dev/null \
+    || iptables -I FORWARD -i "$WG_IF" -j ACCEPT
+iptables -C FORWARD -o "$WG_IF" -j ACCEPT 2>/dev/null \
+    || iptables -I FORWARD -o "$WG_IF" -j ACCEPT
+
+# DOCKER-USER: Docker не трогает эту цепочку — правила переживут перезапуск контейнеров.
+# Без этого Docker может перезаписать FORWARD chain и заблокировать VPN-трафик.
+if iptables -L DOCKER-USER -n &>/dev/null; then
+    echo "Adding rules to DOCKER-USER chain..."
+    iptables -C DOCKER-USER -i "$WG_IF" -j ACCEPT 2>/dev/null \
+        || iptables -I DOCKER-USER -i "$WG_IF" -j ACCEPT
+    iptables -C DOCKER-USER -o "$WG_IF" -j ACCEPT 2>/dev/null \
+        || iptables -I DOCKER-USER -o "$WG_IF" -j ACCEPT
+fi
+
+# MSS clamping: предотвращает проблемы с большими TCP-пакетами через VPN.
+# WireGuard добавляет ~80 байт overhead, без этого TCP-сессии могут зависать
+# (handshake работает, но веб-страницы не грузятся).
+iptables -t mangle -C FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null \
+    || iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
 
 echo "Entrypoint completed, starting application..."
 

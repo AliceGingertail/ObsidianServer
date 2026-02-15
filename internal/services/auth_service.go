@@ -44,6 +44,7 @@ type LoginRequest struct {
 type AuthResponse struct {
 	AccessToken  string       `json:"access_token"`
 	RefreshToken string       `json:"refresh_token"`
+	ExpiresIn    int          `json:"expires_in"`
 	User         *models.User `json:"user"`
 }
 
@@ -173,6 +174,7 @@ func (s *AuthService) generateTokens(ctx context.Context, user *models.User, dev
 	return &AuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
+		ExpiresIn:    int(s.jwtManager.GetAccessTTL().Seconds()),
 		User:         user,
 	}, nil
 }

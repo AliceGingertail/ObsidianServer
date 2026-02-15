@@ -79,6 +79,11 @@ func (m *Manager) ValidateAccessToken(tokenString string) (*Claims, error) {
 	return nil, fmt.Errorf("invalid token")
 }
 
+// GetAccessTTL возвращает TTL для access токенов
+func (m *Manager) GetAccessTTL() time.Duration {
+	return m.accessTTL
+}
+
 // GetRefreshTTL возвращает TTL для refresh токенов
 func (m *Manager) GetRefreshTTL() time.Duration {
 	return m.refreshTTL

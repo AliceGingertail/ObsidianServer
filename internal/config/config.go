@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -15,10 +16,13 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Host         string
-	Port         int
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
+	Host                string
+	Port                int
+	ReadTimeout         time.Duration
+	WriteTimeout        time.Duration
+	CORSOrigins         string
+	RegistrationEnabled bool
+	AdminWebRoot        string
 }
 
 type DatabaseConfig struct {
@@ -38,20 +42,25 @@ type JWTConfig struct {
 }
 
 type VPNConfig struct {
-	WireGuardEnabled  bool
-	WireGuardEndpoint string
-	WireGuardPort     int
-	WireGuardSubnet   string
-	MaxPeersPerUser   int
+	WireGuardEnabled   bool
+	WireGuardEndpoint  string
+	WireGuardPort      int
+	WireGuardSubnet    string
+	WireGuardInterface string
+	WireGuardDNS       string
+	MaxPeersPerUser    int
 }
 
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
-			Host:         getEnv("SERVER_HOST", "0.0.0.0"),
-			Port:         getEnvAsInt("SERVER_PORT", 8080),
-			ReadTimeout:  time.Duration(getEnvAsInt("SERVER_READ_TIMEOUT", 10)) * time.Second,
-			WriteTimeout: time.Duration(getEnvAsInt("SERVER_WRITE_TIMEOUT", 10)) * time.Second,
+			Host:                getEnv("SERVER_HOST", "0.0.0.0"),
+			Port:                getEnvAsInt("SERVER_PORT", 8080),
+			ReadTimeout:         time.Duration(getEnvAsInt("SERVER_READ_TIMEOUT", 10)) * time.Second,
+			WriteTimeout:        time.Duration(getEnvAsInt("SERVER_WRITE_TIMEOUT", 10)) * time.Second,
+			CORSOrigins:         getEnv("CORS_ALLOWED_ORIGINS", "*"),
+			RegistrationEnabled: getEnvAsBool("REGISTRATION_ENABLED", true),
+			AdminWebRoot:        getEnv("ADMIN_WEB_ROOT", "web/admin"),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -68,11 +77,13 @@ func Load() (*Config, error) {
 			RefreshTTL:    time.Duration(getEnvAsInt("JWT_REFRESH_TTL", 168)) * time.Hour,
 		},
 		VPN: VPNConfig{
-			WireGuardEnabled:  getEnvAsBool("WIREGUARD_ENABLED", true),
-			WireGuardEndpoint: getEnv("WIREGUARD_ENDPOINT", ""),
-			WireGuardPort:     getEnvAsInt("WIREGUARD_PORT", 51820),
-			WireGuardSubnet:   getEnv("WIREGUARD_SUBNET", "10.13.13.0/24"),
-			MaxPeersPerUser:   getEnvAsInt("MAX_PEERS_PER_USER", 5),
+			WireGuardEnabled:   getEnvAsBool("WIREGUARD_ENABLED", true),
+			WireGuardEndpoint:  getEnv("WIREGUARD_ENDPOINT", ""),
+			WireGuardPort:      getEnvAsInt("WIREGUARD_PORT", 51821),
+			WireGuardSubnet:    getEnv("WIREGUARD_SUBNET", "10.13.13.0/24"),
+			WireGuardInterface: getEnv("WIREGUARD_INTERFACE", "wg1"),
+			WireGuardDNS:       getEnv("WIREGUARD_DNS", "1.1.1.1, 8.8.8.8"),
+			MaxPeersPerUser:    getEnvAsInt("MAX_PEERS_PER_USER", 5),
 		},
 	}
 
@@ -84,14 +95,12 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.JWT.AccessSecret == "" || c.JWT.AccessSecret == "your-access-secret-change-me" {
-		return fmt.Errorf("JWT_ACCESS_SECRET must be set")
+	if c.JWT.AccessSecret == "your-access-secret-change-me" ||
+		c.JWT.RefreshSecret == "your-refresh-secret-change-me" {
+		log.Println("WARNING: Using default JWT secrets! Set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET environment variables for production.")
 	}
-	if c.JWT.RefreshSecret == "" || c.JWT.RefreshSecret == "your-refresh-secret-change-me" {
-		return fmt.Errorf("JWT_REFRESH_SECRET must be set")
-	}
-	if c.VPN.WireGuardEnabled && c.VPN.WireGuardEndpoint == "" {
-		return fmt.Errorf("WIREGUARD_ENDPOINT must be set when WireGuard is enabled")
+	if c.Database.Password == "vpn123" {
+		log.Println("WARNING: Using default database password! Set DB_PASSWORD environment variable for production.")
 	}
 	return nil
 }

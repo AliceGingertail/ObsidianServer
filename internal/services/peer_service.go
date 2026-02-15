@@ -34,10 +34,12 @@ func NewPeerService(
 }
 
 type CreatePeerRequest struct {
-	UserID     uuid.UUID
-	DeviceName string
-	Protocol   models.Protocol
-	PublicKey  string // Публичный ключ, сгенерированный клиентом
+	UserID          uuid.UUID
+	DeviceName      string
+	Protocol        models.Protocol
+	PublicKey       string // Публичный ключ, сгенерированный клиентом
+	PrivateKey      string // Приватный ключ (только для server-generated peers)
+	ServerGenerated bool   // Флаг: ключи сгенерированы сервером
 }
 
 type PeerWithConfig struct {
@@ -74,10 +76,11 @@ func (s *PeerService) CreatePeer(ctx context.Context, req *CreatePeerRequest) (*
 	// Заполняем данные в зависимости от протокола
 	switch req.Protocol {
 	case models.ProtocolWireGuard:
-		// Публичный ключ приходит от клиента — приватный ключ остаётся у клиента
 		peer.WGPublicKey = &req.PublicKey
-		// Приватный ключ НЕ сохраняем — он остаётся только у клиента
-		peer.WGPrivateKey = nil
+		if req.PrivateKey != "" {
+			peer.WGPrivateKey = &req.PrivateKey
+		}
+		peer.ServerGenerated = req.ServerGenerated
 		// Генерируем preshared key на сервере для дополнительной защиты
 		preshared, err := provider.GeneratePresharedKey(ctx)
 		if err == nil && preshared != "" {
@@ -141,6 +144,21 @@ func (s *PeerService) GetPeerByID(ctx context.Context, peerID, userID uuid.UUID)
 
 func (s *PeerService) GetPeerConfig(ctx context.Context, peerID, userID uuid.UUID) (string, error) {
 	peer, err := s.GetPeerByID(ctx, peerID, userID)
+	if err != nil {
+		return "", err
+	}
+
+	provider, err := s.vpnRegistry.Get(peer.Protocol)
+	if err != nil {
+		return "", err
+	}
+
+	return provider.GenerateClientConfig(ctx, peer)
+}
+
+// GetPeerConfigAdmin generates config without ownership check (admin only).
+func (s *PeerService) GetPeerConfigAdmin(ctx context.Context, peerID uuid.UUID) (string, error) {
+	peer, err := s.peerRepo.GetByID(ctx, peerID)
 	if err != nil {
 		return "", err
 	}
