@@ -52,7 +52,7 @@ jobs:
         run: gzip obsidian-server_${{ steps.version.outputs.version }}_${{ steps.platform.outputs.name }}.tar
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: docker-${{ steps.platform.outputs.name }}
           path: obsidian-server_${{ steps.version.outputs.version }}_${{ steps.platform.outputs.name }}.tar.gz
